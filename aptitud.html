@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HP Brasil — Desglose de aptitud</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="page-aptitud">
+    <header class="page-aptitud__header">
+      <div class="page-aptitud__brand">
+        <img class="sidebar__logo" src="assets/logoHP.png" alt="HP" width="52" height="52" decoding="async" />
+        <div>
+          <h1>Desglose de aptitud</h1>
+          <p class="sidebar__subtitle">Logística inversa · Brasil</p>
+        </div>
+      </div>
+      <nav class="page-aptitud__nav">
+        <a class="btn btn--ghost" href="index.html">← Volver al simulador</a>
+      </nav>
+    </header>
+
+    <p id="aptitud-empty" class="aptitud-empty" hidden>
+      No hay datos guardados. Ejecutá una simulación en el
+      <a href="index.html">panel principal</a> y volvé a esta página para ver el gráfico.
+    </p>
+
+    <div id="aptitud-content" class="aptitud-layout" hidden>
+      <p class="aptitud-meta" id="aptitud-meta"></p>
+
+      <section class="panel panel--aptitud-kpis">
+        <h2 class="visually-hidden">Resumen del lote</h2>
+        <div class="kpi-grid kpi-grid--aptitud">
+          <article class="kpi">
+            <span class="kpi__label">Tasa de recuperación</span>
+            <strong class="kpi__value" id="kpi-recovery">—</strong>
+            <span class="kpi__hint">Originales sanos / lote</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">Tiempo total de jornada</span>
+            <strong class="kpi__value" id="kpi-time">—</strong>
+            <span class="kpi__hint">Suma de tiempos de clasificación</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">Elementos (N)</span>
+            <strong class="kpi__value" id="kpi-count">—</strong>
+            <span class="kpi__hint">Lote simulado</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">Aptos (verde)</span>
+            <strong class="kpi__value kpi__value--green" id="kpi-apt">—</strong>
+            <span class="kpi__hint">HP original sano</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">No apto · daño (amarillo)</span>
+            <strong class="kpi__value kpi__value--warn" id="kpi-dmg">—</strong>
+            <span class="kpi__hint">HP original dañado</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">No apto · genérico (rojo)</span>
+            <strong class="kpi__value kpi__value--danger" id="kpi-gen">—</strong>
+            <span class="kpi__hint">No original</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel panel--aptitud-chart">
+        <h2>Distribución por resultado</h2>
+        <div class="chart-canvas-box chart-canvas-box--aptitud">
+          <canvas id="chart-pie" width="360" height="320"></canvas>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module" src="js/aptitud.js"></script>
+</body>
+</html>

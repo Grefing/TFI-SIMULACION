@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HP Brasil — Simulador Logística Inversa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header class="sidebar__brand">
+        <img class="sidebar__logo" src="assets/logoHP.png" alt="HP" width="52" height="52" decoding="async" />
+        <div>
+          <h1>Logística Inversa</h1>
+          <p class="sidebar__subtitle">Brasil · Clasificación</p>
+        </div>
+      </header>
+
+      <form id="sim-form" class="form">
+        <fieldset>
+          <legend>Reproducibilidad</legend>
+          <label for="seed">Semilla (Seed)</label>
+          <input type="number" id="seed" name="seed" value="12345" step="1" required />
+        </fieldset>
+
+        <fieldset>
+          <legend>Lote</legend>
+          <label class="checkbox">
+            <input type="checkbox" id="random-n" />
+            <span>N aleatorio (1–500)</span>
+          </label>
+          <label for="batch-size">Tamaño del lote (N)</label>
+          <input type="number" id="batch-size" name="batchSize" value="24" min="1" max="2000" required />
+        </fieldset>
+
+        <fieldset>
+          <legend>Operarios (paralelo)</legend>
+          <input type="hidden" id="workers-count" name="workers" value="1" />
+          <div class="workers-ui">
+            <button type="button" class="btn btn--icon" id="btn-workers-down" aria-label="Quitar operario">−</button>
+            <div class="workers-ui__icons" id="workers-icons" title="Puestos activos"></div>
+            <button type="button" class="btn btn--icon" id="btn-workers-up" aria-label="Agregar operario">+</button>
+          </div>
+          <p class="workers-ui__meta"><span id="workers-label">1</span> operario(s) · máx. 12</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Probabilidades</legend>
+          <div class="range-field">
+            <div class="range-field__row">
+              <label for="pct-ink">Mix tinta → tóner</label>
+              <output id="pct-ink-out" for="pct-ink">55%</output>
+            </div>
+            <input type="range" id="pct-ink" name="pctInk" min="0" max="100" value="55" step="1" />
+            <div class="range-field__ticks"><span>0% tóner</span><span>100% tinta</span></div>
+          </div>
+          <div class="range-field">
+            <div class="range-field__row">
+              <label for="pct-original">Piezas HP originales</label>
+              <output id="pct-original-out" for="pct-original">72%</output>
+            </div>
+            <input type="range" id="pct-original" name="pctOriginal" min="0" max="100" value="72" step="1" />
+            <div class="range-field__ticks"><span>0%</span><span>100%</span></div>
+          </div>
+          <div class="range-field">
+            <div class="range-field__row">
+              <label for="pct-damage">Daño físico (sobre originales)</label>
+              <output id="pct-damage-out" for="pct-damage">12%</output>
+            </div>
+            <input type="range" id="pct-damage" name="pctDamage" min="0" max="100" value="12" step="1" />
+            <div class="range-field__ticks"><span>Sano</span><span>Dañado</span></div>
+          </div>
+        </fieldset>
+
+        <div class="form__actions">
+          <button type="submit" class="btn btn--primary" id="btn-run">Ejecutar simulación</button>
+          <button type="button" class="btn btn--ghost" id="btn-reset">Limpiar vista</button>
+          <a class="btn btn--ghost" href="aptitud.html">Desglose de aptitud →</a>
+        </div>
+      </form>
+    </aside>
+
+    <main class="main">
+      <section class="panel panel--progress" aria-labelledby="progress-title">
+        <div class="panel__head">
+          <h2 id="progress-title">Avance de clasificación</h2>
+          <div class="panel__head-actions">
+            <div class="speed-control">
+              <button type="button" class="btn btn--speed" id="btn-speed-up" title="Aumenta la velocidad del paso a paso. Vuelve a ×1 tras ×8.">
+                Acelerar
+              </button>
+              <span class="speed-control__label" id="speed-factor-label" aria-live="polite">×1</span>
+            </div>
+            <span class="badge" id="progress-badge">Listo</span>
+          </div>
+        </div>
+        <div class="progress-meta">
+          <div class="progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-aria">
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+          <p class="progress-text" id="progress-text">Configure parámetros y ejecute la simulación.</p>
+        </div>
+
+        <div class="operators-panel" id="operators-panel" aria-label="Estado de operarios">
+          <div class="operators-panel__head">
+            <h3 class="operators-panel__title">Puestos de clasificación</h3>
+            <span class="operators-panel__badge" id="operators-count-badge">1 op.</span>
+          </div>
+          <p class="operators-panel__hint">Cada operario atiende una pieza a la vez. Con W operarios hay hasta W clasificaciones en paralelo.</p>
+          <div class="operators-strip" id="operators-strip"></div>
+        </div>
+
+        <div class="conveyor" id="conveyor" aria-live="polite">
+          <div
+            class="conveyor__ratio conveyor__ratio--stacked"
+            role="img"
+            aria-label="Proporción del lote ya procesado: aptos, daño físico, genéricos"
+          >
+            <div class="conveyor__ratio-seg conveyor__ratio-seg--apt" id="belt-ratio-apt"></div>
+            <div class="conveyor__ratio-seg conveyor__ratio-seg--dmg" id="belt-ratio-dmg"></div>
+            <div class="conveyor__ratio-seg conveyor__ratio-seg--gen" id="belt-ratio-gen"></div>
+          </div>
+          <p class="conveyor__ratio-hint">
+            Barra acumulada: <span class="hint-dot hint-dot--ok"></span> apto
+            · <span class="hint-dot hint-dot--warn"></span> no apto · daño (original)
+            · <span class="hint-dot hint-dot--bad"></span> no apto · genérico
+          </p>
+          <div class="conveyor__belt-wrap">
+            <div class="dock dock--in" title="Entrada de lote">
+              <span class="dock__icon" aria-hidden="true">⌂</span>
+              <span class="dock__label">IN</span>
+            </div>
+            <div class="conveyor__track">
+              <div class="conveyor__rollers" aria-hidden="true"></div>
+              <div class="conveyor__cells" id="belt-cells"></div>
+              <div class="conveyor__line" title="Línea de clasificación">
+                <span>Línea de clasificación</span>
+              </div>
+            </div>
+            <div class="dock dock--out" title="Salida">
+              <span class="dock__icon" aria-hidden="true">♻</span>
+              <span class="dock__label">OUT</span>
+            </div>
+          </div>
+          <div class="conveyor__bottom">
+            <div class="conveyor__stats">
+              <div class="conveyor__stat">
+                <span class="conveyor__stat-label">Cola (pendientes)</span>
+                <strong id="belt-stat-queue">—</strong>
+                <span class="conveyor__stat-wait" id="belt-stat-wait">—</span>
+              </div>
+              <div class="conveyor__stat conveyor__stat--pill conveyor__stat--blue">
+                <span class="conveyor__stat-label">Procesados</span>
+                <strong id="belt-stat-processed">0</strong>
+              </div>
+              <div class="conveyor__stat conveyor__stat--pill conveyor__stat--green">
+                <span class="conveyor__stat-label">Aptos</span>
+                <strong id="belt-stat-apt">0</strong>
+              </div>
+              <div class="conveyor__stat conveyor__stat--pill conveyor__stat--warn">
+                <span class="conveyor__stat-label">No apto · daño</span>
+                <strong id="belt-stat-dmg">0</strong>
+              </div>
+              <div class="conveyor__stat conveyor__stat--pill conveyor__stat--red">
+                <span class="conveyor__stat-label">No apto · genérico</span>
+                <strong id="belt-stat-gen">0</strong>
+              </div>
+            </div>
+            <aside class="conveyor__legend" aria-label="Leyenda de la cinta">
+              <p class="conveyor__legend-title">Forma del cartucho</p>
+              <div class="legend-types">
+                <div class="legend-type">
+                  <span class="legend-type__icon" aria-hidden="true">
+                    <svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" width="32" height="42">
+                      <rect x="3" y="3" width="34" height="46" rx="8" fill="none" stroke="#8b949e" stroke-width="2" />
+                      <rect x="8" y="10" width="24" height="28" rx="3" fill="#30363d" />
+                      <rect x="11" y="14" width="18" height="9" rx="2" fill="#0096d6" />
+                      <path d="M14 40 L26 40 L22 50 L18 50 Z" fill="#484f58" />
+                    </svg>
+                  </span>
+                  <span class="legend-type__label">Tinta</span>
+                </div>
+                <div class="legend-type">
+                  <span class="legend-type__icon legend-type__icon--toner" aria-hidden="true">
+                    <svg viewBox="0 0 52 48" xmlns="http://www.w3.org/2000/svg" width="38" height="36">
+                      <rect x="3" y="3" width="46" height="42" rx="7" fill="none" stroke="#8b949e" stroke-width="2" />
+                      <rect x="8" y="10" width="36" height="22" rx="3" fill="#30363d" />
+                      <circle cx="26" cy="32" r="10" fill="#21262d" stroke="#484f58" stroke-width="1.5" />
+                      <circle cx="26" cy="32" r="5" fill="#0096d6" opacity="0.9" />
+                    </svg>
+                  </span>
+                  <span class="legend-type__label">Tóner</span>
+                </div>
+              </div>
+              <p class="conveyor__legend-title conveyor__legend-title--sub">Color del recuadro (ya clasificado)</p>
+              <ul class="legend-colors">
+                <li>
+                  <span class="legend-swatch legend-swatch--ok" aria-hidden="true"></span>
+                  <span>Verde — HP original apto (sano)</span>
+                </li>
+                <li>
+                  <span class="legend-swatch legend-swatch--warn" aria-hidden="true"></span>
+                  <span>Amarillo — HP original con daño físico (no apto)</span>
+                </li>
+                <li>
+                  <span class="legend-swatch legend-swatch--bad" aria-hidden="true"></span>
+                  <span>Rojo — Genérico (no apto)</span>
+                </li>
+              </ul>
+              <p class="conveyor__legend-note">A la izquierda de la línea, los cartuchos pendientes se muestran con <strong>recuadro gris</strong> hasta pasar clasificación.</p>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--kpis" aria-labelledby="kpi-title">
+        <h2 id="kpi-title" class="visually-hidden">Indicadores</h2>
+        <div class="kpi-grid">
+          <article class="kpi">
+            <span class="kpi__label">Tasa de recuperación</span>
+            <strong class="kpi__value" id="kpi-recovery">—</strong>
+            <span class="kpi__hint">Originales sanos / lote</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">Tiempo total de jornada</span>
+            <strong class="kpi__value" id="kpi-time">—</strong>
+            <span class="kpi__hint">Reloj de jornada (paralelo según operarios)</span>
+          </article>
+          <article class="kpi">
+            <span class="kpi__label">Elementos procesados</span>
+            <strong class="kpi__value" id="kpi-count">—</strong>
+            <span class="kpi__hint">N efectivo</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel panel--detail">
+        <div class="table-wrap">
+          <div class="panel--detail__head">
+            <h2>Detalle por elemento</h2>
+            <a class="btn btn--ghost btn--small" href="aptitud.html">Ver desglose de aptitud →</a>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tipo</th>
+                  <th>Originalidad</th>
+                  <th>Integridad</th>
+                  <th>Estado</th>
+                  <th>Clasif.</th>
+                  <th>Op.</th>
+                </tr>
+              </thead>
+              <tbody id="results-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
