@@ -37,7 +37,20 @@
         <h2 class="visually-hidden">Resumen del lote</h2>
         <div class="kpi-grid kpi-grid--aptitud">
           <article class="kpi">
-            <span class="kpi__label">Tasa de recuperación</span>
+            <div class="kpi__label-row">
+              <span class="kpi__label">Tasa de recuperación</span>
+              <button
+                type="button"
+                class="kpi__info-btn kpi__info-btn--inactive"
+                id="kpi-recovery-info"
+                aria-label="Desglose por tinta y tóner. Ejecutá una simulación para ver datos."
+              >
+                <svg class="kpi__info-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.25" />
+                  <path fill="currentColor" d="M8 4.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7zm-.5 2.5h1.1v5.3H7.5V6.6z" />
+                </svg>
+              </button>
+            </div>
             <strong class="kpi__value" id="kpi-recovery">—</strong>
             <span class="kpi__hint">Originales sanos / lote</span>
           </article>
@@ -75,6 +88,49 @@
           <canvas id="chart-pie" width="360" height="320"></canvas>
         </div>
       </section>
+    </div>
+  </div>
+
+  <div id="recovery-modal-root" class="recovery-modal" hidden aria-hidden="true">
+    <div class="recovery-modal__backdrop" data-recovery-modal-close tabindex="-1" aria-hidden="true"></div>
+    <div
+      class="recovery-modal__dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recovery-modal-title"
+      tabindex="-1"
+    >
+      <div class="recovery-modal__head">
+        <h2 id="recovery-modal-title" class="recovery-modal__title">Desglose de recuperación</h2>
+        <button type="button" class="recovery-modal__close" data-recovery-modal-close aria-label="Cerrar">
+          ×
+        </button>
+      </div>
+      <div class="recovery-modal__body">
+        <p class="recovery-modal__lead" id="recovery-modal-lead"></p>
+        <ul class="recovery-modal__list">
+          <li class="recovery-modal__item">
+            <span class="recovery-modal__item-label">Tinta (cartuchos) — aptos</span>
+            <strong class="recovery-modal__item-value" id="recovery-modal-ink"></strong>
+            <span class="recovery-modal__item-unit">del lote</span>
+          </li>
+          <li class="recovery-modal__item">
+            <span class="recovery-modal__item-label">Tóner — aptos</span>
+            <strong class="recovery-modal__item-value" id="recovery-modal-toner"></strong>
+            <span class="recovery-modal__item-unit">del lote</span>
+          </li>
+          <li class="recovery-modal__item recovery-modal__item--total">
+            <span class="recovery-modal__item-label">Total recuperación</span>
+            <strong class="recovery-modal__item-value" id="recovery-modal-total"></strong>
+            <span class="recovery-modal__item-unit">del lote</span>
+          </li>
+        </ul>
+        <p class="recovery-modal__note" id="recovery-modal-n"></p>
+        <p class="recovery-modal__hint">Los porcentajes son sobre el total de piezas del lote (N), no sobre las no aptas.</p>
+      </div>
+      <div class="recovery-modal__footer">
+        <button type="button" class="btn btn--primary" data-recovery-modal-close>Cerrar</button>
+      </div>
     </div>
   </div>
 

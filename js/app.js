@@ -3,6 +3,7 @@
  * Toda la aleatoriedad del simulador pasa por esta clase (sin Math.random).
  */
 import { saveSimSnapshot } from "./simSnapshot.js";
+import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 
 class LCG {
   constructor(seed) {
@@ -87,14 +88,10 @@ function formatJornada(sec) {
   return `${Math.round(m)} min`;
 }
 
-/**
- * Una sola secuencia LCG: si N es aleatorio, consume sorteos antes del lote
- * y el resto de la simulación continúa el mismo estado (reproducible).
- */
+/** Una sola secuencia LCG para todo el lote (reproducible con la semilla). */
 function simulateBatch(params) {
   const {
     seed,
-    randomN,
     manualN,
     pctInk,
     pctOriginal,
@@ -103,12 +100,7 @@ function simulateBatch(params) {
   } = params;
 
   const rng = new LCG(seed);
-  let n;
-  if (randomN) {
-    n = rng.nextIntInclusive(1, 500);
-  } else {
-    n = Math.max(1, Math.min(2000, Math.floor(Number(manualN)) || 1));
-  }
+  const n = Math.max(1, Math.min(2000, Math.floor(Number(manualN)) || 1));
 
   const workers = Math.min(12, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
@@ -124,6 +116,9 @@ function simulateBatch(params) {
     original_danado: 0,
   };
 
+  let aptosTinta = 0;
+  let aptosToner = 0;
+
   for (let i = 1; i <= n; i += 1) {
     const isInk = rng.nextBernoulli(pInk);
     const tipo = isInk ? "Tinta" : "Tóner";
@@ -134,6 +129,10 @@ function simulateBatch(params) {
 
     const { apto, bucket } = classifyItem(isOriginal, isDamaged);
     counts[bucket] += 1;
+    if (bucket === "original_apto") {
+      if (tipo === "Tinta") aptosTinta += 1;
+      else aptosToner += 1;
+    }
     const tiempoSec = sampleServiceSec(rng, bucket);
 
     items.push({
@@ -150,6 +149,8 @@ function simulateBatch(params) {
   const makespanSec = scheduleParallel(items, workers);
   const sumServiceSec = items.reduce((s, it) => s + it.tiempoSec, 0);
   const recoveryPct = n > 0 ? (counts.original_apto / n) * 100 : 0;
+  const recoveryInkPct = n > 0 ? (aptosTinta / n) * 100 : 0;
+  const recoveryTonerPct = n > 0 ? (aptosToner / n) * 100 : 0;
 
   return {
     items,
@@ -158,6 +159,8 @@ function simulateBatch(params) {
     sumServiceSec,
     counts,
     recoveryPct,
+    recoveryInkPct,
+    recoveryTonerPct,
     n,
     seed: Number(params.seed),
     workers,
@@ -186,10 +189,17 @@ function effectiveStepDelayMs(baseDelayMs) {
   return Math.max(40, Math.floor(baseDelayMs / getSimSpeedFactor()));
 }
 
-function setKpis({ recoveryPct, n, makespanSec }) {
+function setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec }) {
   document.getElementById("kpi-recovery").textContent = `${recoveryPct.toFixed(1)} %`;
   document.getElementById("kpi-time").textContent = formatJornada(makespanSec);
   document.getElementById("kpi-count").textContent = String(n);
+  syncRecoveryInfoBtn({
+    recoveryPct,
+    recoveryInkPct,
+    recoveryTonerPct,
+    n,
+    active: true,
+  });
 }
 
 const BELT_COLS = 7;
@@ -204,6 +214,7 @@ function clearResultsUi() {
   document.getElementById("kpi-recovery").textContent = "—";
   document.getElementById("kpi-time").textContent = "—";
   document.getElementById("kpi-count").textContent = "—";
+  syncRecoveryInfoBtn({ active: false });
   document.getElementById("belt-stat-queue").textContent = "—";
   document.getElementById("belt-stat-wait").textContent = "";
   document.getElementById("belt-stat-processed").textContent = "0";
@@ -511,10 +522,13 @@ async function runAnimatedSimulation(result, delayMs) {
   badge.textContent = "Finalizado";
   badge.className = "badge badge--done";
 
-  setKpis({ recoveryPct, n, makespanSec });
+  const { recoveryInkPct, recoveryTonerPct } = result;
+  setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
   saveSimSnapshot({
     counts,
     recoveryPct,
+    recoveryInkPct,
+    recoveryTonerPct,
     n,
     totalMinutes: makespanSec / 60,
     makespanSec,
@@ -530,7 +544,6 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
   btn.disabled = true;
 
   const seed = Number(document.getElementById("seed").value);
-  const randomN = document.getElementById("random-n").checked;
   const manualN = document.getElementById("batch-size").value;
   const pctInk = document.getElementById("pct-ink").value;
   const pctOriginal = document.getElementById("pct-original").value;
@@ -539,7 +552,6 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 
   const result = simulateBatch({
     seed,
-    randomN,
     manualN,
     pctInk,
     pctOriginal,
@@ -547,9 +559,13 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
     workers,
   });
 
-  if (randomN) {
-    document.getElementById("batch-size").value = String(result.n);
-  }
+  setKpis({
+    recoveryPct: result.recoveryPct,
+    recoveryInkPct: result.recoveryInkPct,
+    recoveryTonerPct: result.recoveryTonerPct,
+    n: result.n,
+    makespanSec: result.makespanSec,
+  });
 
   const delayMs = computeStepDelayMs(result.n);
   try {
@@ -562,16 +578,6 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 document.getElementById("btn-reset").addEventListener("click", () => {
   clearResultsUi();
 });
-
-document.getElementById("random-n").addEventListener("change", (ev) => {
-  const input = document.getElementById("batch-size");
-  input.disabled = ev.target.checked;
-  input.title = ev.target.checked
-    ? "N se calculará con la semilla al ejecutar"
-    : "";
-});
-
-document.getElementById("random-n").dispatchEvent(new Event("change"));
 
 document.getElementById("btn-speed-up").addEventListener("click", () => {
   cycleSimSpeed();
@@ -618,3 +624,4 @@ function bindWorkersUi() {
 
 bindRangeOutputs();
 bindWorkersUi();
+initRecoveryInfoModal();

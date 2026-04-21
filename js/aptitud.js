@@ -1,4 +1,5 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
+import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 
 let chartInstance = null;
 
@@ -80,7 +81,17 @@ function init() {
   empty.hidden = true;
   content.hidden = false;
 
-  const { counts, recoveryPct, n, totalMinutes, makespanSec, workers, seed } = snap;
+  const {
+    counts,
+    recoveryPct,
+    recoveryInkPct,
+    recoveryTonerPct,
+    n,
+    totalMinutes,
+    makespanSec,
+    workers,
+    seed,
+  } = snap;
   const ms = Number.isFinite(makespanSec) ? makespanSec : (totalMinutes || 0) * 60;
   const jornada =
     ms < 60 ? `${Math.round(ms)} s` : ms < 600 ? `${(ms / 60).toFixed(1)} min` : `${Math.round(ms / 60)} min`;
@@ -88,6 +99,19 @@ function init() {
   meta.textContent = `Última corrida · N = ${n} · Recuperación ${fmtPct(recoveryPct, 1)} · Jornada ${jornada}${op} · semilla ${seed ?? "—"}`;
 
   document.getElementById("kpi-recovery").textContent = fmtPct(recoveryPct, 1);
+  const hasRecoveryBreakdown =
+    Number.isFinite(recoveryInkPct) && Number.isFinite(recoveryTonerPct) && Number.isFinite(recoveryPct);
+  if (hasRecoveryBreakdown) {
+    syncRecoveryInfoBtn({
+      recoveryPct,
+      recoveryInkPct,
+      recoveryTonerPct,
+      n,
+      active: true,
+    });
+  } else {
+    syncRecoveryInfoBtn({ active: false });
+  }
   document.getElementById("kpi-time").textContent = jornada;
   document.getElementById("kpi-count").textContent = String(n);
   document.getElementById("kpi-apt").textContent = String(counts.original_apto);
@@ -98,3 +122,4 @@ function init() {
 }
 
 init();
+initRecoveryInfoModal();
