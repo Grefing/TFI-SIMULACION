@@ -31,7 +31,7 @@
         <fieldset>
           <legend>Lote</legend>
           <label for="batch-size">Unidades del lote (N)</label>
-          <input type="number" id="batch-size" name="batchSize" value="24" min="1" max="2000" required />
+          <p class="workers-ui__meta">Se genera al ejecutar: entre 300 y 2000 unidades (según la semilla).</p>
         </fieldset>
 
         <fieldset>
@@ -52,7 +52,7 @@
               <label for="pct-ink">Mix tinta → tóner</label>
               <output id="pct-ink-out" for="pct-ink">55%</output>
             </div>
-            <input type="range" id="pct-ink" name="pctInk" min="0" max="100" value="55" step="1" />
+            <input type="range" id="pct-ink" name="pctInk" min="0" max="100" value="50" step="1" />
             <div class="range-field__ticks"><span>0% tóner</span><span>100% tinta</span></div>
           </div>
           <div class="range-field">
@@ -60,7 +60,7 @@
               <label for="pct-original">Piezas HP originales</label>
               <output id="pct-original-out" for="pct-original">72%</output>
             </div>
-            <input type="range" id="pct-original" name="pctOriginal" min="0" max="100" value="72" step="1" />
+            <input type="range" id="pct-original" name="pctOriginal" min="0" max="100" value="36" step="1" />
             <div class="range-field__ticks"><span>0%</span><span>100%</span></div>
           </div>
           <div class="range-field">
@@ -75,8 +75,9 @@
 
         <div class="form__actions">
           <button type="submit" class="btn btn--primary" id="btn-run">Ejecutar simulación</button>
+          <button type="button" class="btn btn--ghost btn--skip" id="btn-skip" disabled>Completar ahora</button>
           <button type="button" class="btn btn--ghost" id="btn-reset">Limpiar vista</button>
-          <a class="btn btn--ghost" href="aptitud.html">Desglose de aptitud →</a>
+          <a class="btn btn--ghost" id="btn-aptitud-nav" href="aptitud.html">Desglose de aptitud →</a>
         </div>
       </form>
     </aside>
@@ -252,7 +253,7 @@
         <div class="table-wrap">
           <div class="panel--detail__head">
             <h2>Detalle por elemento</h2>
-            <a class="btn btn--ghost btn--small" href="aptitud.html">Ver desglose de aptitud →</a>
+            <a class="btn btn--ghost btn--small" id="btn-aptitud-detail" href="aptitud.html">Ver desglose de aptitud →</a>
           </div>
           <div class="table-scroll">
             <table>

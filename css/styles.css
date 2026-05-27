@@ -404,9 +404,12 @@ body {
   border-color: var(--hp-blue);
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn.btn--disabled,
+a.btn[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
+  pointer-events: none;
   transform: none;
 }
 
@@ -494,6 +497,16 @@ body {
 .badge--done {
   color: var(--success);
   border-color: rgba(63, 185, 80, 0.35);
+}
+
+.btn--skip:not(:disabled) {
+  color: var(--hp-blue);
+  border-color: rgba(0, 150, 214, 0.45);
+}
+
+.btn--skip:not(:disabled):hover {
+  color: #4db8e8;
+  border-color: var(--hp-blue);
 }
 
 .progress-meta {

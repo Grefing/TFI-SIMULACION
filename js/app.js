@@ -13,13 +13,11 @@ class LCG {
     this.state = (s >>> 0) || 1;
   }
 
-  /** Uniforme en [0, 1) */
   nextU01() {
     this.state = (1664525 * this.state + 1013904223) >>> 0;
     return this.state / 4294967296;
   }
 
-  /** Entero uniforme en [min, max] inclusive */
   nextIntInclusive(min, max) {
     const lo = Math.ceil(min);
     const hi = Math.floor(max);
@@ -48,11 +46,8 @@ function classifyItem(isOriginal, isDamaged) {
   return { apto: true, bucket: "original_apto" };
 }
 
-/** Tiempos de clasificación (uniforme LCG) según estado final. */
-function sampleServiceSec(rng, bucket) {
-  if (bucket === "generico") return rng.nextIntInclusive(3, 10);
-  if (bucket === "original_danado") return rng.nextIntInclusive(15, 30);
-  return rng.nextIntInclusive(60, 120);
+function sampleServiceSec(rng) {
+  return rng.nextIntInclusive(15, 30);
 }
 
 function scheduleParallel(items, workers) {
@@ -88,11 +83,10 @@ function formatJornada(sec) {
   return `${Math.round(m)} min`;
 }
 
-/** Una sola secuencia LCG para todo el lote (reproducible con la semilla). */
+
 function simulateBatch(params) {
   const {
     seed,
-    manualN,
     pctInk,
     pctOriginal,
     pctDamage,
@@ -100,7 +94,7 @@ function simulateBatch(params) {
   } = params;
 
   const rng = new LCG(seed);
-  const n = Math.max(1, Math.min(2000, Math.floor(Number(manualN)) || 1));
+  const n = rng.nextIntInclusive(300, 2000);
 
   const workers = Math.min(12, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
@@ -133,7 +127,7 @@ function simulateBatch(params) {
       if (tipo === "Tinta") aptosTinta += 1;
       else aptosToner += 1;
     }
-    const tiempoSec = sampleServiceSec(rng, bucket);
+    const tiempoSec = sampleServiceSec(rng);
 
     items.push({
       id: i,
@@ -170,6 +164,50 @@ function simulateBatch(params) {
 /** Velocidad de la animación: ×1 (base) … ×8. Se aplica al tiempo entre piezas. */
 const SPEED_STEPS = [1, 2, 4, 8];
 let simSpeedIndex = 0;
+let simAbortController = null;
+
+function setNavLinkDisabled(el, disabled) {
+  if (!el) return;
+  if (disabled) {
+    if (!el.dataset.href) el.dataset.href = el.getAttribute("href") || "";
+    el.removeAttribute("href");
+    el.setAttribute("aria-disabled", "true");
+    el.classList.add("btn--disabled");
+  } else {
+    if (el.dataset.href) el.setAttribute("href", el.dataset.href);
+    el.removeAttribute("aria-disabled");
+    el.classList.remove("btn--disabled");
+  }
+}
+
+function setSimControlsRunning(running) {
+  const runBtn = document.getElementById("btn-run");
+  const skipBtn = document.getElementById("btn-skip");
+  const resetBtn = document.getElementById("btn-reset");
+  if (runBtn) runBtn.disabled = running;
+  if (skipBtn) skipBtn.disabled = !running;
+  if (resetBtn) resetBtn.disabled = running;
+  setNavLinkDisabled(document.getElementById("btn-aptitud-nav"), running);
+  setNavLinkDisabled(document.getElementById("btn-aptitud-detail"), running);
+}
+
+function waitMs(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const id = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(id);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
 
 function getSimSpeedFactor() {
   return SPEED_STEPS[simSpeedIndex];
@@ -221,6 +259,8 @@ function clearResultsUi() {
   document.getElementById("belt-stat-apt").textContent = "0";
   document.getElementById("belt-stat-dmg").textContent = "0";
   document.getElementById("belt-stat-gen").textContent = "0";
+  const batchEl = document.getElementById("batch-size");
+  if (batchEl) batchEl.value = "";
   setBeltRatioWidths(0, 0, 0);
   const strip = document.getElementById("operators-strip");
   if (strip) strip.innerHTML = "";
@@ -459,7 +499,54 @@ function appendResultRow(item, { flash }) {
   }
 }
 
-async function runAnimatedSimulation(result, delayMs) {
+function finishSimulationUi(result) {
+  const { items, makespanSec, counts, recoveryPct, n, workers } = result;
+  const bar = document.getElementById("progress-bar");
+  const text = document.getElementById("progress-text");
+  const aria = document.getElementById("progress-aria");
+  const badge = document.getElementById("progress-badge");
+  const tbody = document.getElementById("results-body");
+
+  tbody.innerHTML = "";
+  for (const it of [...items].sort((a, b) => a.id - b.id)) {
+    appendResultRow(it, { flash: false });
+  }
+
+  const completed = new Set(items.map((i) => i.id));
+  const center = items.reduce((a, b) =>
+    a.endSec > b.endSec || (a.endSec === b.endSec && a.id > b.id) ? a : b,
+  );
+  const recent = [...items]
+    .sort((a, b) => b.endSec - a.endSec || b.id - a.id)
+    .slice(0, 3);
+
+  renderBeltParallel({ center, pending: [], recent });
+  updateBeltStatsFromCompleted(completed, items, n);
+  renderOperatorsStrip(makespanSec, items, workers);
+
+  bar.style.width = "100%";
+  aria.setAttribute("aria-valuenow", "100");
+  text.textContent = `Completado: ${n} piezas · ${workers} operario(s) · Jornada ${formatJornada(makespanSec)}`;
+  badge.textContent = "Finalizado";
+  badge.className = "badge badge--done";
+
+  const { recoveryInkPct, recoveryTonerPct } = result;
+  setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
+  saveSimSnapshot({
+    counts,
+    recoveryPct,
+    recoveryInkPct,
+    recoveryTonerPct,
+    n,
+    totalMinutes: makespanSec / 60,
+    makespanSec,
+    workers,
+    seed: result.seed,
+    savedAt: Date.now(),
+  });
+}
+
+async function runAnimatedSimulation(result, stepDelayMs, signal) {
   const { items, makespanSec, counts, recoveryPct, n, workers } = result;
   const bar = document.getElementById("progress-bar");
   const text = document.getElementById("progress-text");
@@ -479,11 +566,20 @@ async function runAnimatedSimulation(result, delayMs) {
   renderOperatorsStrip(0, items, workers);
 
   for (const tEnd of endTimes) {
+    if (signal?.aborted) break;
+
     const tView = prev === 0 ? 0 : (prev + tEnd) / 2;
     if (tEnd > prev) {
       renderOperatorsStrip(tView, items, workers);
-      await new Promise((r) => setTimeout(r, delayForEventGap(tEnd - prev, delayMs)));
+      try {
+        await waitMs(delayForEventGap(tEnd - prev, stepDelayMs), signal);
+      } catch (err) {
+        if (err?.name === "AbortError") break;
+        throw err;
+      }
     }
+
+    if (signal?.aborted) break;
 
     const batch = items.filter((i) => i.endSec === tEnd).sort((a, b) => a.id - b.id);
     for (const it of batch) {
@@ -514,37 +610,25 @@ async function runAnimatedSimulation(result, delayMs) {
     prev = tEnd;
   }
 
-  renderOperatorsStrip(makespanSec, items, workers);
+  if (signal?.aborted) {
+    finishSimulationUi(result);
+    return true;
+  }
 
-  bar.style.width = "100%";
-  aria.setAttribute("aria-valuenow", "100");
-  text.textContent = `Completado: ${n} piezas · ${workers} operario(s) · Jornada ${formatJornada(makespanSec)}`;
-  badge.textContent = "Finalizado";
-  badge.className = "badge badge--done";
-
-  const { recoveryInkPct, recoveryTonerPct } = result;
-  setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
-  saveSimSnapshot({
-    counts,
-    recoveryPct,
-    recoveryInkPct,
-    recoveryTonerPct,
-    n,
-    totalMinutes: makespanSec / 60,
-    makespanSec,
-    workers,
-    seed: result.seed,
-    savedAt: Date.now(),
-  });
+  finishSimulationUi(result);
+  return true;
 }
 
 document.getElementById("sim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const btn = document.getElementById("btn-run");
-  btn.disabled = true;
+
+  simAbortController?.abort();
+  simAbortController = new AbortController();
+  const { signal } = simAbortController;
+
+  setSimControlsRunning(true);
 
   const seed = Number(document.getElementById("seed").value);
-  const manualN = document.getElementById("batch-size").value;
   const pctInk = document.getElementById("pct-ink").value;
   const pctOriginal = document.getElementById("pct-original").value;
   const pctDamage = document.getElementById("pct-damage").value;
@@ -552,12 +636,14 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 
   const result = simulateBatch({
     seed,
-    manualN,
     pctInk,
     pctOriginal,
     pctDamage,
     workers,
   });
+
+  const batchEl = document.getElementById("batch-size");
+  if (batchEl) batchEl.value = String(result.n);
 
   setKpis({
     recoveryPct: result.recoveryPct,
@@ -567,12 +653,17 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
     makespanSec: result.makespanSec,
   });
 
-  const delayMs = computeStepDelayMs(result.n);
+  const stepDelayMs = computeStepDelayMs(result.n);
   try {
-    await runAnimatedSimulation(result, delayMs);
+    await runAnimatedSimulation(result, stepDelayMs, signal);
   } finally {
-    btn.disabled = false;
+    simAbortController = null;
+    setSimControlsRunning(false);
   }
+});
+
+document.getElementById("btn-skip").addEventListener("click", () => {
+  simAbortController?.abort();
 });
 
 document.getElementById("btn-reset").addEventListener("click", () => {
