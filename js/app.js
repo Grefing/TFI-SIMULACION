@@ -1,6 +1,6 @@
 /**
- * Generador Congruencial Lineal (LCG) — 32 bits sin signo.
- * Toda la aleatoriedad del simulador pasa por esta clase (sin Math.random).
+ * Generador de aleatoriedad (versión con error E1 — Math.random).
+ * La semilla no controla la secuencia: cada corrida difiere aunque seed sea igual.
  */
 import { saveSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
@@ -14,8 +14,7 @@ class LCG {
   }
 
   nextU01() {
-    this.state = (1664525 * this.state + 1013904223) >>> 0;
-    return this.state / 4294967296;
+    return Math.random();
   }
 
   nextIntInclusive(min, max) {
