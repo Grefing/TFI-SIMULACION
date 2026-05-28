@@ -5,6 +5,10 @@
 import { saveSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 
+const BATCH_N_MIN = 150;
+const BATCH_N_MAX = 3000;
+const MAX_WORKERS = 8;
+
 class LCG {
   constructor(seed) {
     let s = Number(seed);
@@ -46,12 +50,21 @@ function classifyItem(isOriginal, isDamaged) {
   return { apto: true, bucket: "original_apto" };
 }
 
-function sampleServiceSec(rng) {
-  return rng.nextIntInclusive(15, 30);
+/** Tiempo de clasificación (uniforme LCG) según tipo, originalidad e integridad. */
+function sampleServiceSec(rng, tipo, isOriginal, isDamaged) {
+  const isInk = tipo === "Tinta";
+  if (isInk) {
+    if (!isOriginal) return rng.nextIntInclusive(15, 25);
+    if (isDamaged) return rng.nextIntInclusive(20, 35);
+    return rng.nextIntInclusive(15, 25);
+  }
+  if (!isOriginal) return rng.nextIntInclusive(20, 35);
+  if (isDamaged) return rng.nextIntInclusive(25, 45);
+  return rng.nextIntInclusive(20, 35);
 }
 
 function scheduleParallel(items, workers) {
-  const w = Math.max(1, Math.min(12, Math.floor(workers) || 1));
+  const w = Math.max(1, Math.min(MAX_WORKERS, Math.floor(workers) || 1));
   const free = new Array(w).fill(0);
   for (const it of items) {
     let wi = 0;
@@ -94,9 +107,9 @@ function simulateBatch(params) {
   } = params;
 
   const rng = new LCG(seed);
-  const n = rng.nextIntInclusive(300, 2000);
+  const n = rng.nextIntInclusive(BATCH_N_MIN, BATCH_N_MAX);
 
-  const workers = Math.min(12, Math.max(1, Math.floor(Number(workersRaw)) || 1));
+  const workers = Math.min(MAX_WORKERS, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
   const pInk = clampPct(pctInk) / 100;
   const pOriginal = clampPct(pctOriginal) / 100;
@@ -112,6 +125,10 @@ function simulateBatch(params) {
 
   let aptosTinta = 0;
   let aptosToner = 0;
+  let danadoTinta = 0;
+  let danadoToner = 0;
+  let genericoTinta = 0;
+  let genericoToner = 0;
 
   for (let i = 1; i <= n; i += 1) {
     const isInk = rng.nextBernoulli(pInk);
@@ -126,8 +143,14 @@ function simulateBatch(params) {
     if (bucket === "original_apto") {
       if (tipo === "Tinta") aptosTinta += 1;
       else aptosToner += 1;
+    } else if (bucket === "original_danado") {
+      if (tipo === "Tinta") danadoTinta += 1;
+      else danadoToner += 1;
+    } else if (bucket === "generico") {
+      if (tipo === "Tinta") genericoTinta += 1;
+      else genericoToner += 1;
     }
-    const tiempoSec = sampleServiceSec(rng);
+    const tiempoSec = sampleServiceSec(rng, tipo, isOriginal, isDamaged);
 
     items.push({
       id: i,
@@ -155,6 +178,12 @@ function simulateBatch(params) {
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta,
+    aptosToner,
+    danadoTinta,
+    danadoToner,
+    genericoTinta,
+    genericoToner,
     n,
     seed: Number(params.seed),
     workers,
@@ -269,7 +298,7 @@ function clearResultsUi() {
   badge.className = "badge";
   const opBadge = document.getElementById("operators-count-badge");
   if (opBadge) {
-    const w = Math.max(1, Math.min(12, Number(document.getElementById("workers-count")?.value) || 1));
+    const w = Math.max(1, Math.min(MAX_WORKERS, Number(document.getElementById("workers-count")?.value) || 1));
     opBadge.textContent = `${w} op.`;
   }
 }
@@ -530,13 +559,19 @@ function finishSimulationUi(result) {
   badge.textContent = "Finalizado";
   badge.className = "badge badge--done";
 
-  const { recoveryInkPct, recoveryTonerPct } = result;
+  const { recoveryInkPct, recoveryTonerPct, aptosTinta, aptosToner, danadoTinta, danadoToner, genericoTinta, genericoToner } = result;
   setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
   saveSimSnapshot({
     counts,
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta,
+    aptosToner,
+    danadoTinta,
+    danadoToner,
+    genericoTinta,
+    genericoToner,
     n,
     totalMinutes: makespanSec / 60,
     makespanSec,
@@ -700,10 +735,10 @@ function bindWorkersUi() {
   const up = document.getElementById("btn-workers-up");
   if (!hid || !down || !up) return;
 
-  const read = () => Math.min(12, Math.max(1, Number(hid.value) || 1));
+  const read = () => Math.min(MAX_WORKERS, Math.max(1, Number(hid.value) || 1));
 
   const apply = (raw) => {
-    const v = Math.min(12, Math.max(1, Number(raw) || 1));
+    const v = Math.min(MAX_WORKERS, Math.max(1, Number(raw) || 1));
     hid.value = String(v);
     renderSidebarWorkerIcons(v);
   };

@@ -1,5 +1,6 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
+import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
 
 let chartInstance = null;
 
@@ -75,6 +76,9 @@ function init() {
   if (!snap || !snap.counts) {
     empty.hidden = false;
     content.hidden = true;
+    syncAptInfoBtn({ active: false });
+    syncDmgInfoBtn({ active: false });
+    syncGenInfoBtn({ active: false });
     return;
   }
 
@@ -86,6 +90,12 @@ function init() {
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta: snapAptosTinta,
+    aptosToner: snapAptosToner,
+    danadoTinta: snapDanadoTinta,
+    danadoToner: snapDanadoToner,
+    genericoTinta: snapGenericoTinta,
+    genericoToner: snapGenericoToner,
     n,
     totalMinutes,
     makespanSec,
@@ -115,11 +125,54 @@ function init() {
   document.getElementById("kpi-time").textContent = jornada;
   document.getElementById("kpi-count").textContent = String(n);
   document.getElementById("kpi-apt").textContent = String(counts.original_apto);
+
+  const aptosTotal = counts.original_apto;
+  let aptosTinta = Number(snapAptosTinta);
+  let aptosToner = Number(snapAptosToner);
+  if (!Number.isFinite(aptosTinta) && Number.isFinite(recoveryInkPct) && n > 0) {
+    aptosTinta = Math.round((recoveryInkPct / 100) * n);
+  }
+  if (!Number.isFinite(aptosToner) && Number.isFinite(recoveryTonerPct) && n > 0) {
+    aptosToner = Math.round((recoveryTonerPct / 100) * n);
+  }
+  if (aptosTotal > 0 && Number.isFinite(aptosTinta) && Number.isFinite(aptosToner)) {
+    syncAptInfoBtn({ aptosTinta, aptosToner, aptosTotal, active: true });
+  } else {
+    syncAptInfoBtn({ active: false });
+  }
+
   document.getElementById("kpi-dmg").textContent = String(counts.original_danado);
   document.getElementById("kpi-gen").textContent = String(counts.generico);
+
+  const danadoTotal = counts.original_danado;
+  const danadoTinta = Number(snapDanadoTinta);
+  const danadoToner = Number(snapDanadoToner);
+  if (
+    danadoTotal > 0 &&
+    Number.isFinite(danadoTinta) &&
+    Number.isFinite(danadoToner)
+  ) {
+    syncDmgInfoBtn({ danadoTinta, danadoToner, danadoTotal, active: true });
+  } else {
+    syncDmgInfoBtn({ active: false });
+  }
+
+  const genericoTotal = counts.generico;
+  const genericoTinta = Number(snapGenericoTinta);
+  const genericoToner = Number(snapGenericoToner);
+  if (
+    genericoTotal > 0 &&
+    Number.isFinite(genericoTinta) &&
+    Number.isFinite(genericoToner)
+  ) {
+    syncGenInfoBtn({ genericoTinta, genericoToner, genericoTotal, active: true });
+  } else {
+    syncGenInfoBtn({ active: false });
+  }
 
   renderChart(counts);
 }
 
 init();
 initRecoveryInfoModal();
+initAptInfoModal();
