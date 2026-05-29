@@ -97,12 +97,35 @@ function formatJornada(sec) {
 }
 
 
+/**
+ * Sorteo por pieza: tinta/tóner total del lote (pInk) + HP orig. tinta/tóner + genéricos.
+ * En genéricos, reparte tinta/tóner para que el lote total respete el mix global.
+ */
+function samplePieceKind(rng, pInk, pOrigInk, pOrigToner) {
+  const u = rng.nextU01();
+  if (u < pOrigInk) {
+    return { tipo: "Tinta", isOriginal: true };
+  }
+  if (u < pOrigInk + pOrigToner) {
+    return { tipo: "Tóner", isOriginal: true };
+  }
+  const pGen = Math.max(0, 1 - pOrigInk - pOrigToner);
+  let pInkIfGeneric = 0.5;
+  if (pGen > 0) {
+    pInkIfGeneric = Math.min(1, Math.max(0, (pInk - pOrigInk) / pGen));
+  }
+  const isInk = rng.nextBernoulli(pInkIfGeneric);
+  return { tipo: isInk ? "Tinta" : "Tóner", isOriginal: false };
+}
+
 function simulateBatch(params) {
   const {
     seed,
     pctInk,
-    pctOriginal,
-    pctDamage,
+    pctOrigInk,
+    pctOrigToner,
+    pctDmgInk,
+    pctDmgToner,
     workers: workersRaw,
   } = params;
 
@@ -112,8 +135,10 @@ function simulateBatch(params) {
   const workers = Math.min(MAX_WORKERS, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
   const pInk = clampPct(pctInk) / 100;
-  const pOriginal = clampPct(pctOriginal) / 100;
-  const pDamage = clampPct(pctDamage) / 100;
+  const pOrigInk = clampPct(pctOrigInk) / 100;
+  const pOrigToner = clampPct(pctOrigToner) / 100;
+  const pDmgInk = clampPct(pctDmgInk) / 100;
+  const pDmgToner = clampPct(pctDmgToner) / 100;
 
   const items = [];
 
@@ -131,11 +156,12 @@ function simulateBatch(params) {
   let genericoToner = 0;
 
   for (let i = 1; i <= n; i += 1) {
-    const isInk = rng.nextBernoulli(pInk);
-    const tipo = isInk ? "Tinta" : "Tóner";
-    const isOriginal = rng.nextBernoulli(pOriginal);
+    const { tipo, isOriginal } = samplePieceKind(rng, pInk, pOrigInk, pOrigToner);
     const originalidad = isOriginal ? "HP Original" : "Genérico";
-    const isDamaged = rng.nextBernoulli(pDamage);
+    let isDamaged = false;
+    if (isOriginal) {
+      isDamaged = rng.nextBernoulli(tipo === "Tinta" ? pDmgInk : pDmgToner);
+    }
     const integridad = isDamaged ? "Dañado" : "Sano";
 
     const { apto, bucket } = classifyItem(isOriginal, isDamaged);
@@ -665,15 +691,19 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 
   const seed = Number(document.getElementById("seed").value);
   const pctInk = document.getElementById("pct-ink").value;
-  const pctOriginal = document.getElementById("pct-original").value;
-  const pctDamage = document.getElementById("pct-damage").value;
+  const pctOrigInk = document.getElementById("pct-orig-ink").value;
+  const pctOrigToner = document.getElementById("pct-orig-toner").value;
+  const pctDmgInk = document.getElementById("pct-dmg-ink").value;
+  const pctDmgToner = document.getElementById("pct-dmg-toner").value;
   const workers = document.getElementById("workers-count").value;
 
   const result = simulateBatch({
     seed,
     pctInk,
-    pctOriginal,
-    pctDamage,
+    pctOrigInk,
+    pctOrigToner,
+    pctDmgInk,
+    pctDmgToner,
     workers,
   });
 
@@ -714,8 +744,10 @@ syncSpeedUi();
 function bindRangeOutputs() {
   const pairs = [
     ["pct-ink", "pct-ink-out"],
-    ["pct-original", "pct-original-out"],
-    ["pct-damage", "pct-damage-out"],
+    ["pct-orig-ink", "pct-orig-ink-out"],
+    ["pct-orig-toner", "pct-orig-toner-out"],
+    ["pct-dmg-ink", "pct-dmg-ink-out"],
+    ["pct-dmg-toner", "pct-dmg-toner-out"],
   ];
   for (const [id, outId] of pairs) {
     const inp = document.getElementById(id);

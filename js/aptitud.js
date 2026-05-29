@@ -1,6 +1,7 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
+import { exportAptitudPdf, preloadAptitudPdfLogo } from "./aptitudPdf.js";
 
 let chartInstance = null;
 
@@ -67,6 +68,31 @@ function fmtPct(n, d) {
   return `${n.toFixed(d)} %`;
 }
 
+function setPdfButtonEnabled(enabled) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+}
+
+function initPdfDownload(snap) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  if (snap?.counts) preloadAptitudPdfLogo();
+  btn.addEventListener("click", async () => {
+    const current = loadSimSnapshot();
+    if (!current?.counts) return;
+    const wasEnabled = !btn.disabled;
+    btn.disabled = true;
+    try {
+      await exportAptitudPdf(current);
+    } finally {
+      if (wasEnabled) setPdfButtonEnabled(true);
+    }
+  });
+  setPdfButtonEnabled(Boolean(snap?.counts));
+}
+
 function init() {
   const snap = loadSimSnapshot();
   const empty = document.getElementById("aptitud-empty");
@@ -76,11 +102,14 @@ function init() {
   if (!snap || !snap.counts) {
     empty.hidden = false;
     content.hidden = true;
+    setPdfButtonEnabled(false);
     syncAptInfoBtn({ active: false });
     syncDmgInfoBtn({ active: false });
     syncGenInfoBtn({ active: false });
     return;
   }
+
+  setPdfButtonEnabled(true);
 
   empty.hidden = true;
   content.hidden = false;
@@ -174,5 +203,6 @@ function init() {
 }
 
 init();
+initPdfDownload(loadSimSnapshot());
 initRecoveryInfoModal();
 initAptInfoModal();

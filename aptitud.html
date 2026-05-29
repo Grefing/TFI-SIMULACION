@@ -21,6 +21,15 @@
         </div>
       </div>
       <nav class="page-aptitud__nav">
+        <button
+          type="button"
+          class="btn btn--primary"
+          id="btn-aptitud-pdf"
+          disabled
+          aria-label="Descargar informe PDF con los resultados de la última simulación"
+        >
+          Descargar PDF
+        </button>
         <a class="btn btn--ghost" href="index.html">← Volver al simulador</a>
       </nav>
     </header>
@@ -183,7 +192,12 @@
       tabindex="-1"
     >
       <div class="recovery-modal__head">
-        <h2 id="bucket-modal-title" class="recovery-modal__title">Desglose</h2>
+        <h2 id="bucket-modal-title" class="recovery-modal__title">
+          <span class="recovery-modal__title-inner">
+            <span id="bucket-modal-title-dot" class="recovery-modal__category-dot" hidden aria-hidden="true"></span>
+            <span id="bucket-modal-title-text">Desglose</span>
+          </span>
+        </h2>
         <button type="button" class="recovery-modal__close" data-bucket-modal-close aria-label="Cerrar">
           ×
         </button>
@@ -216,6 +230,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
   <script type="module" src="js/aptitud.js"></script>
 </body>
 </html>

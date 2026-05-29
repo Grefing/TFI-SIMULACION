@@ -1189,6 +1189,32 @@ body.recovery-modal-open {
   line-height: 1.25;
 }
 
+.recovery-modal__title-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recovery-modal__category-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.recovery-modal__category-dot--apt {
+  background: var(--success);
+}
+
+.recovery-modal__category-dot--dmg {
+  background: #e3b341;
+}
+
+.recovery-modal__category-dot--gen {
+  background: var(--danger);
+}
+
 .recovery-modal__close {
   flex-shrink: 0;
   width: 2rem;
@@ -1356,6 +1382,13 @@ body.recovery-modal-open {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 600;
+}
+
+.page-aptitud__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .aptitud-empty {
