@@ -1,13 +1,8 @@
+import { formatJornada } from "./timeFormat.js";
+
 function fmtPct(n, digits = 1) {
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(digits)} %`;
-}
-
-function fmtJornada(makespanSec, totalMinutes) {
-  const ms = Number.isFinite(makespanSec) ? makespanSec : (totalMinutes || 0) * 60;
-  if (ms < 60) return `${Math.round(ms)} s`;
-  if (ms < 600) return `${(ms / 60).toFixed(1)} min`;
-  return `${Math.round(ms / 60)} min`;
 }
 
 function pctOf(count, n) {
@@ -110,7 +105,8 @@ export async function exportAptitudPdf(snap) {
     savedAt,
   } = snap;
 
-  const jornada = fmtJornada(makespanSec, totalMinutes);
+  const ms = Number.isFinite(makespanSec) ? makespanSec : (totalMinutes || 0) * 60;
+  const jornada = formatJornada(ms);
   const when = savedAt
     ? new Date(savedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
     : new Date().toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });

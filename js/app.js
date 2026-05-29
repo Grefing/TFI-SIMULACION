@@ -1,9 +1,7 @@
-/**
- * Generador Congruencial Lineal (LCG) — 32 bits sin signo.
- * Toda la aleatoriedad del simulador pasa por esta clase (sin Math.random).
- */
 import { saveSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
+import { syncBottleneckAlert, hideBottleneckAlert } from "./bottleneckAlertUi.js";
+import { formatJornada } from "./timeFormat.js";
 
 const BATCH_N_MIN = 150;
 const BATCH_N_MAX = 3000;
@@ -50,17 +48,27 @@ function classifyItem(isOriginal, isDamaged) {
   return { apto: true, bucket: "original_apto" };
 }
 
-/** Tiempo de clasificación (uniforme LCG) según tipo, originalidad e integridad. */
+/** Media exponencial (s): tinta −20·ln(U), tóner −25·ln(U); original dañado + Uniforme(5, 10). */
+const SERVICE_MEAN_SEC = { Tinta: 20, Tóner: 25 };
+const DAMAGE_EXTRA_MIN_SEC = 5;
+const DAMAGE_EXTRA_SPAN_SEC = 5;
+
+function sampleExponentialSec(rng, meanSec) {
+  const u = Math.max(rng.nextU01(), 1e-12);
+  return -meanSec * Math.log(u);
+}
+
+function sampleDamageExtraSec(rng) {
+  return DAMAGE_EXTRA_MIN_SEC + DAMAGE_EXTRA_SPAN_SEC * rng.nextU01();
+}
+
 function sampleServiceSec(rng, tipo, isOriginal, isDamaged) {
-  const isInk = tipo === "Tinta";
-  if (isInk) {
-    if (!isOriginal) return rng.nextIntInclusive(15, 25);
-    if (isDamaged) return rng.nextIntInclusive(20, 35);
-    return rng.nextIntInclusive(15, 25);
+  const mean = tipo === "Tóner" ? SERVICE_MEAN_SEC.Tóner : SERVICE_MEAN_SEC.Tinta;
+  let t = sampleExponentialSec(rng, mean);
+  if (isOriginal && isDamaged) {
+    t += sampleDamageExtraSec(rng);
   }
-  if (!isOriginal) return rng.nextIntInclusive(20, 35);
-  if (isDamaged) return rng.nextIntInclusive(25, 45);
-  return rng.nextIntInclusive(20, 35);
+  return Math.max(1, Math.round(t));
 }
 
 function scheduleParallel(items, workers) {
@@ -87,15 +95,6 @@ function formatSec(s) {
   const r = n % 60;
   return r ? `${m}m ${r}s` : `${m} m`;
 }
-
-function formatJornada(sec) {
-  const n = Math.round(Number(sec));
-  if (!Number.isFinite(n) || n < 60) return formatSec(n);
-  const m = n / 60;
-  if (m < 10) return `${m.toFixed(1)} min`;
-  return `${Math.round(m)} min`;
-}
-
 
 /**
  * Sorteo por pieza: tinta/tóner total del lote (pInk) + HP orig. tinta/tóner + genéricos.
@@ -308,6 +307,7 @@ function clearResultsUi() {
   document.getElementById("kpi-time").textContent = "—";
   document.getElementById("kpi-count").textContent = "—";
   syncRecoveryInfoBtn({ active: false });
+  hideBottleneckAlert();
   document.getElementById("belt-stat-queue").textContent = "—";
   document.getElementById("belt-stat-wait").textContent = "";
   document.getElementById("belt-stat-processed").textContent = "0";
@@ -587,6 +587,7 @@ function finishSimulationUi(result) {
 
   const { recoveryInkPct, recoveryTonerPct, aptosTinta, aptosToner, danadoTinta, danadoToner, genericoTinta, genericoToner } = result;
   setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
+  syncBottleneckAlert(makespanSec, workers);
   saveSimSnapshot({
     counts,
     recoveryPct,
