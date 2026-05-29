@@ -1,5 +1,7 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
+import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
+import { exportAptitudPdf, preloadAptitudPdfLogo } from "./aptitudPdf.js";
 
 let chartInstance = null;
 
@@ -66,6 +68,31 @@ function fmtPct(n, d) {
   return `${n.toFixed(d)} %`;
 }
 
+function setPdfButtonEnabled(enabled) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+}
+
+function initPdfDownload(snap) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  if (snap?.counts) preloadAptitudPdfLogo();
+  btn.addEventListener("click", async () => {
+    const current = loadSimSnapshot();
+    if (!current?.counts) return;
+    const wasEnabled = !btn.disabled;
+    btn.disabled = true;
+    try {
+      await exportAptitudPdf(current);
+    } finally {
+      if (wasEnabled) setPdfButtonEnabled(true);
+    }
+  });
+  setPdfButtonEnabled(Boolean(snap?.counts));
+}
+
 function init() {
   const snap = loadSimSnapshot();
   const empty = document.getElementById("aptitud-empty");
@@ -75,8 +102,14 @@ function init() {
   if (!snap || !snap.counts) {
     empty.hidden = false;
     content.hidden = true;
+    setPdfButtonEnabled(false);
+    syncAptInfoBtn({ active: false });
+    syncDmgInfoBtn({ active: false });
+    syncGenInfoBtn({ active: false });
     return;
   }
+
+  setPdfButtonEnabled(true);
 
   empty.hidden = true;
   content.hidden = false;
@@ -86,6 +119,12 @@ function init() {
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta: snapAptosTinta,
+    aptosToner: snapAptosToner,
+    danadoTinta: snapDanadoTinta,
+    danadoToner: snapDanadoToner,
+    genericoTinta: snapGenericoTinta,
+    genericoToner: snapGenericoToner,
     n,
     totalMinutes,
     makespanSec,
@@ -115,11 +154,55 @@ function init() {
   document.getElementById("kpi-time").textContent = jornada;
   document.getElementById("kpi-count").textContent = String(n);
   document.getElementById("kpi-apt").textContent = String(counts.original_apto);
+
+  const aptosTotal = counts.original_apto;
+  let aptosTinta = Number(snapAptosTinta);
+  let aptosToner = Number(snapAptosToner);
+  if (!Number.isFinite(aptosTinta) && Number.isFinite(recoveryInkPct) && n > 0) {
+    aptosTinta = Math.round((recoveryInkPct / 100) * n);
+  }
+  if (!Number.isFinite(aptosToner) && Number.isFinite(recoveryTonerPct) && n > 0) {
+    aptosToner = Math.round((recoveryTonerPct / 100) * n);
+  }
+  if (aptosTotal > 0 && Number.isFinite(aptosTinta) && Number.isFinite(aptosToner)) {
+    syncAptInfoBtn({ aptosTinta, aptosToner, aptosTotal, active: true });
+  } else {
+    syncAptInfoBtn({ active: false });
+  }
+
   document.getElementById("kpi-dmg").textContent = String(counts.original_danado);
   document.getElementById("kpi-gen").textContent = String(counts.generico);
+
+  const danadoTotal = counts.original_danado;
+  const danadoTinta = Number(snapDanadoTinta);
+  const danadoToner = Number(snapDanadoToner);
+  if (
+    danadoTotal > 0 &&
+    Number.isFinite(danadoTinta) &&
+    Number.isFinite(danadoToner)
+  ) {
+    syncDmgInfoBtn({ danadoTinta, danadoToner, danadoTotal, active: true });
+  } else {
+    syncDmgInfoBtn({ active: false });
+  }
+
+  const genericoTotal = counts.generico;
+  const genericoTinta = Number(snapGenericoTinta);
+  const genericoToner = Number(snapGenericoToner);
+  if (
+    genericoTotal > 0 &&
+    Number.isFinite(genericoTinta) &&
+    Number.isFinite(genericoToner)
+  ) {
+    syncGenInfoBtn({ genericoTinta, genericoToner, genericoTotal, active: true });
+  } else {
+    syncGenInfoBtn({ active: false });
+  }
 
   renderChart(counts);
 }
 
 init();
+initPdfDownload(loadSimSnapshot());
 initRecoveryInfoModal();
+initAptInfoModal();

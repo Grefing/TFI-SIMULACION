@@ -25,13 +25,13 @@
         <fieldset>
           <legend>Reproducibilidad</legend>
           <label for="seed">Semilla (Seed)</label>
-          <input type="number" id="seed" name="seed" value="12345" step="1" required />
+          <input type="number" id="seed" name="seed" step="1" required />
         </fieldset>
 
         <fieldset>
           <legend>Lote</legend>
           <label for="batch-size">Unidades del lote (N)</label>
-          <p class="workers-ui__meta">Se genera al ejecutar: entre 300 y 2000 unidades (según la semilla).</p>
+          <p class="workers-ui__meta">Se genera al ejecutar: entre 150 y 3000 unidades (según la semilla).</p>
         </fieldset>
 
         <fieldset>
@@ -42,7 +42,7 @@
             <div class="workers-ui__icons" id="workers-icons" title="Puestos activos"></div>
             <button type="button" class="btn btn--icon" id="btn-workers-up" aria-label="Agregar operario">+</button>
           </div>
-          <p class="workers-ui__meta"><span id="workers-label">1</span> operario(s) · máx. 12</p>
+          <p class="workers-ui__meta"><span id="workers-label">1</span> operario(s) · máx. 8</p>
         </fieldset>
 
         <fieldset>
@@ -50,25 +50,43 @@
           <div class="range-field">
             <div class="range-field__row">
               <label for="pct-ink">Mix tinta → tóner</label>
-              <output id="pct-ink-out" for="pct-ink">55%</output>
+              <output id="pct-ink-out" for="pct-ink">75%</output>
             </div>
-            <input type="range" id="pct-ink" name="pctInk" min="0" max="100" value="50" step="1" />
-            <div class="range-field__ticks"><span>0% tóner</span><span>100% tinta</span></div>
+            <input type="range" id="pct-ink" name="pctInk" min="0" max="100" value="75" step="1" />
+            <div class="range-field__ticks"><span>0% tóner</span><span>100% tinta del lote</span></div>
+          </div>
+          <p class="workers-ui__meta">Composición HP original (% del tamaño del lote):</p>
+          <div class="range-field">
+            <div class="range-field__row">
+              <label for="pct-orig-ink">Cartucho tinta HP original</label>
+              <output id="pct-orig-ink-out" for="pct-orig-ink">42%</output>
+            </div>
+            <input type="range" id="pct-orig-ink" name="pctOrigInk" min="0" max="100" value="42" step="1" />
+            <div class="range-field__ticks"><span>0%</span><span>100% del lote</span></div>
           </div>
           <div class="range-field">
             <div class="range-field__row">
-              <label for="pct-original">Piezas HP originales</label>
-              <output id="pct-original-out" for="pct-original">72%</output>
+              <label for="pct-orig-toner">Tóner HP original</label>
+              <output id="pct-orig-toner-out" for="pct-orig-toner">20%</output>
             </div>
-            <input type="range" id="pct-original" name="pctOriginal" min="0" max="100" value="36" step="1" />
-            <div class="range-field__ticks"><span>0%</span><span>100%</span></div>
+            <input type="range" id="pct-orig-toner" name="pctOrigToner" min="0" max="100" value="20" step="1" />
+            <div class="range-field__ticks"><span>0%</span><span>100% del lote</span></div>
+          </div>
+          <p class="workers-ui__meta">Daño físico solo sobre piezas HP originales:</p>
+          <div class="range-field">
+            <div class="range-field__row">
+              <label for="pct-dmg-ink">Daño en cartucho tinta original</label>
+              <output id="pct-dmg-ink-out" for="pct-dmg-ink">12%</output>
+            </div>
+            <input type="range" id="pct-dmg-ink" name="pctDmgInk" min="0" max="100" value="12" step="1" />
+            <div class="range-field__ticks"><span>Sano</span><span>Dañado</span></div>
           </div>
           <div class="range-field">
             <div class="range-field__row">
-              <label for="pct-damage">Daño físico (sobre originales)</label>
-              <output id="pct-damage-out" for="pct-damage">12%</output>
+              <label for="pct-dmg-toner">Daño en tóner HP original</label>
+              <output id="pct-dmg-toner-out" for="pct-dmg-toner">8%</output>
             </div>
-            <input type="range" id="pct-damage" name="pctDamage" min="0" max="100" value="12" step="1" />
+            <input type="range" id="pct-dmg-toner" name="pctDmgToner" min="0" max="100" value="8" step="1" />
             <div class="range-field__ticks"><span>Sano</span><span>Dañado</span></div>
           </div>
         </fieldset>
