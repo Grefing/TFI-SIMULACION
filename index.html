@@ -257,13 +257,17 @@
           <article class="kpi">
             <span class="kpi__label">Tiempo total de jornada</span>
             <strong class="kpi__value" id="kpi-time">—</strong>
-            <span class="kpi__hint">Reloj de jornada (paralelo según operarios)</span>
+            <span class="kpi__hint">Jornada en horas (paralelo según operarios)</span>
           </article>
           <article class="kpi">
             <span class="kpi__label">Elementos procesados</span>
             <strong class="kpi__value" id="kpi-count">—</strong>
             <span class="kpi__hint">N efectivo</span>
           </article>
+        </div>
+        <div id="bottleneck-alert" class="bottleneck-alert" hidden role="alert" aria-live="polite">
+          <strong class="bottleneck-alert__title">Cuello de botella detectado</strong>
+          <p class="bottleneck-alert__text" id="bottleneck-alert-text"></p>
         </div>
       </section>
 

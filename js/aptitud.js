@@ -2,6 +2,8 @@ import { loadSimSnapshot } from "./simSnapshot.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
 import { exportAptitudPdf, preloadAptitudPdfLogo } from "./aptitudPdf.js";
+import { syncBottleneckAlert, hideBottleneckAlert } from "./bottleneckAlertUi.js";
+import { formatJornada } from "./timeFormat.js";
 
 let chartInstance = null;
 
@@ -106,6 +108,7 @@ function init() {
     syncAptInfoBtn({ active: false });
     syncDmgInfoBtn({ active: false });
     syncGenInfoBtn({ active: false });
+    hideBottleneckAlert();
     return;
   }
 
@@ -132,8 +135,7 @@ function init() {
     seed,
   } = snap;
   const ms = Number.isFinite(makespanSec) ? makespanSec : (totalMinutes || 0) * 60;
-  const jornada =
-    ms < 60 ? `${Math.round(ms)} s` : ms < 600 ? `${(ms / 60).toFixed(1)} min` : `${Math.round(ms / 60)} min`;
+  const jornada = formatJornada(ms);
   const op = workers != null ? ` · ${workers} op.` : "";
   meta.textContent = `Última corrida · N = ${n} · Recuperación ${fmtPct(recoveryPct, 1)} · Jornada ${jornada}${op} · semilla ${seed ?? "—"}`;
 
@@ -152,6 +154,7 @@ function init() {
     syncRecoveryInfoBtn({ active: false });
   }
   document.getElementById("kpi-time").textContent = jornada;
+  syncBottleneckAlert(ms, workers);
   document.getElementById("kpi-count").textContent = String(n);
   document.getElementById("kpi-apt").textContent = String(counts.original_apto);
 

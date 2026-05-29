@@ -1426,6 +1426,33 @@ body.recovery-modal-open {
   color: #ff8a84 !important;
 }
 
+.bottleneck-alert {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(227, 179, 65, 0.55);
+  background: rgba(227, 179, 65, 0.12);
+  line-height: 1.45;
+}
+
+.bottleneck-alert[hidden] {
+  display: none;
+}
+
+.bottleneck-alert__title {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e3b341;
+}
+
+.bottleneck-alert__text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .panel--aptitud-chart h2 {
   margin: 0 0 0.75rem;
   font-size: 0.95rem;
