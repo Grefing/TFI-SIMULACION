@@ -1,6 +1,7 @@
 let bucketModalListenersBound = false;
 let lastBucketModalBtnId = null;
 
+/** Referencias DOM del modal de desglose por categoría. */
 function getBucketModalEls() {
   const root = document.getElementById("bucket-modal-root");
   if (!root) return null;
@@ -17,6 +18,7 @@ function getBucketModalEls() {
   };
 }
 
+/** Colorea el punto del título según apto/daño/genérico. */
 function setBucketModalCategory(dotEl, category) {
   if (!dotEl) return;
   dotEl.className = "recovery-modal__category-dot";
@@ -30,6 +32,7 @@ function setBucketModalCategory(dotEl, category) {
   }
 }
 
+/** Abre el modal con unidades tinta/tóner de una categoría. */
 function openBucketModal({
   title,
   category,
@@ -65,6 +68,7 @@ function openBucketModal({
   }
 }
 
+/** Cierra el modal y restaura el foco al botón que lo abrió. */
 function closeBucketModal() {
   const els = getBucketModalEls();
   if (!els) return;
@@ -77,6 +81,7 @@ function closeBucketModal() {
   }
 }
 
+/** Cierra el modal de categoría con Escape. */
 function onDocumentKeydown(e) {
   if (e.key !== "Escape") return;
   const root = document.getElementById("bucket-modal-root");
@@ -84,6 +89,7 @@ function onDocumentKeydown(e) {
   closeBucketModal();
 }
 
+/** Lee data-* del botón ℹ y abre el modal correspondiente. */
 function handleBreakdownClick(btn) {
   if (!btn || btn.classList.contains("kpi__info-btn--inactive")) return;
   const total = Number(btn.dataset.bucketTotal);
@@ -101,6 +107,7 @@ function handleBreakdownClick(btn) {
   });
 }
 
+/** Enlaza los tres botones ℹ de aptitud y el cierre del modal. */
 export function initAptInfoModal() {
   if (bucketModalListenersBound) return;
   bucketModalListenersBound = true;
@@ -123,6 +130,7 @@ export function initAptInfoModal() {
   }
 }
 
+/** Configura un botón ℹ genérico (datos y estado activo/inactivo). */
 export function syncBucketBreakdownBtn(
   buttonId,
   {
@@ -171,6 +179,7 @@ export function syncBucketBreakdownBtn(
   btn.setAttribute("aria-label", activeAriaLabel);
 }
 
+/** Sincroniza el botón ℹ de piezas aptas (HP original sano). */
 export function syncAptInfoBtn({ aptosTinta = 0, aptosToner = 0, aptosTotal = 0, active }) {
   syncBucketBreakdownBtn("kpi-apt-info", {
     active,
@@ -188,6 +197,7 @@ export function syncAptInfoBtn({ aptosTinta = 0, aptosToner = 0, aptosTotal = 0,
   });
 }
 
+/** Sincroniza el botón ℹ de originales dañados. */
 export function syncDmgInfoBtn({ danadoTinta = 0, danadoToner = 0, danadoTotal = 0, active }) {
   syncBucketBreakdownBtn("kpi-dmg-info", {
     active,
@@ -205,6 +215,7 @@ export function syncDmgInfoBtn({ danadoTinta = 0, danadoToner = 0, danadoTotal =
   });
 }
 
+/** Sincroniza el botón ℹ de piezas genéricas. */
 export function syncGenInfoBtn({ genericoTinta = 0, genericoToner = 0, genericoTotal = 0, active }) {
   syncBucketBreakdownBtn("kpi-gen-info", {
     active,

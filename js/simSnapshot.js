@@ -1,5 +1,6 @@
 export const SIM_SNAPSHOT_KEY = "hpInvSimSnapshot";
 
+/** Guarda el resumen de la última corrida en sessionStorage. */
 export function saveSimSnapshot(data) {
   try {
     sessionStorage.setItem(SIM_SNAPSHOT_KEY, JSON.stringify(data));
@@ -8,6 +9,7 @@ export function saveSimSnapshot(data) {
   }
 }
 
+/** Lee el resumen guardado o null si no hay corrida. */
 export function loadSimSnapshot() {
   try {
     const raw = sessionStorage.getItem(SIM_SNAPSHOT_KEY);

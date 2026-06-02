@@ -1,15 +1,18 @@
 import { formatJornada } from "./timeFormat.js";
 
+/** Porcentaje con decimales para tablas del PDF. */
 function fmtPct(n, digits = 1) {
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(digits)} %`;
 }
 
+/** Porcentaje de count respecto al tamaño del lote n. */
 function pctOf(count, n) {
   if (!n || !Number.isFinite(count)) return "—";
   return fmtPct((count / n) * 100, 1);
 }
 
+/** Obtiene unidades aptas tinta/tóner desde snapshot o % recuperación. */
 function resolveAptosCounts(snap) {
   const { n, recoveryInkPct, recoveryTonerPct, aptosTinta, aptosToner, counts } = snap;
   let tinta = Number(aptosTinta);
@@ -38,6 +41,7 @@ const MARGIN_LEFT = 14;
 let logoDataUrlCache = null;
 let logoLoadPromise = null;
 
+/** Carga el logo HP como data URL (con caché). */
 function loadLogoDataUrl() {
   if (logoDataUrlCache) return Promise.resolve(logoDataUrlCache);
   if (!logoLoadPromise) {
@@ -67,12 +71,12 @@ function loadLogoDataUrl() {
   return logoLoadPromise;
 }
 
-/** Precarga el logo para acelerar la primera descarga. */
+/** Precarga el logo HP antes del primer PDF. */
 export function preloadAptitudPdfLogo() {
   return loadLogoDataUrl().catch(() => null);
 }
 
-/** @param {object | null} snap */
+/** Genera y descarga el PDF del desglose de aptitud. */
 export async function exportAptitudPdf(snap) {
   if (!snap?.counts) return false;
 

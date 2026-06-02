@@ -1,4 +1,4 @@
-/** Formato de jornada / makespan siempre en horas (h). */
+/** Convierte segundos de jornada a texto legible (s o h). */
 export function formatJornada(sec) {
   const n = Number(sec);
   if (!Number.isFinite(n) || n < 0) return "—";

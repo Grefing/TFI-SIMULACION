@@ -7,6 +7,7 @@ import { formatJornada } from "./timeFormat.js";
 
 let chartInstance = null;
 
+/** Destruye la instancia anterior del gráfico Chart.js. */
 function destroyChart() {
   if (chartInstance) {
     chartInstance.destroy();
@@ -14,6 +15,7 @@ function destroyChart() {
   }
 }
 
+/** Dibuja la torta aptos / dañados / genéricos. */
 function renderChart(counts) {
   const el = document.getElementById("chart-pie");
   if (!el || typeof Chart === "undefined") return;
@@ -65,11 +67,13 @@ function renderChart(counts) {
   });
 }
 
+/** Formatea un número como porcentaje con d decimales. */
 function fmtPct(n, d) {
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(d)} %`;
 }
 
+/** Habilita o deshabilita el botón de descarga PDF. */
 function setPdfButtonEnabled(enabled) {
   const btn = document.getElementById("btn-aptitud-pdf");
   if (!btn) return;
@@ -77,6 +81,7 @@ function setPdfButtonEnabled(enabled) {
   btn.setAttribute("aria-disabled", enabled ? "false" : "true");
 }
 
+/** Enlaza el clic del botón PDF a exportAptitudPdf. */
 function initPdfDownload(snap) {
   const btn = document.getElementById("btn-aptitud-pdf");
   if (!btn) return;
@@ -95,6 +100,7 @@ function initPdfDownload(snap) {
   setPdfButtonEnabled(Boolean(snap?.counts));
 }
 
+/** Carga el snapshot y pinta KPIs, gráfico y botones ℹ. */
 function init() {
   const snap = loadSimSnapshot();
   const empty = document.getElementById("aptitud-empty");

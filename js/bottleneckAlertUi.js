@@ -3,10 +3,7 @@ import { formatJornada } from "./timeFormat.js";
 export const JORNADA_LIMITE_HORAS = 8;
 export const JORNADA_LIMITE_SEC = JORNADA_LIMITE_HORAS * 60 * 60;
 
-/**
- * Muestra u oculta el banner de cuello de botella (jornada > 8 h).
- * Llamar solo al finalizar la corrida, no durante la animación.
- */
+/** Muestra alerta si la jornada supera 8 h (cuello de botella). */
 export function syncBottleneckAlert(makespanSec, workers) {
   const alert = document.getElementById("bottleneck-alert");
   const textEl = document.getElementById("bottleneck-alert-text");
@@ -28,6 +25,7 @@ export function syncBottleneckAlert(makespanSec, workers) {
   kpiTime?.classList.add("kpi__value--warn");
 }
 
+/** Oculta el banner y quita el estilo de advertencia del KPI tiempo. */
 export function hideBottleneckAlert() {
   const alert = document.getElementById("bottleneck-alert");
   if (alert) alert.hidden = true;
