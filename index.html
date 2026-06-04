@@ -25,7 +25,8 @@
         <fieldset>
           <legend>Reproducibilidad</legend>
           <label for="seed">Semilla (Seed)</label>
-          <input type="number" id="seed" name="seed" step="1" required />
+          <input type="number" id="seed" name="seed" step="1" min="0" required />
+          <p class="workers-ui__meta">Entero ≥ 0. Si ingresás 0, el generador usa estado inicial 1.</p>
         </fieldset>
 
         <fieldset>
