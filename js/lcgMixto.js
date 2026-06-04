@@ -19,6 +19,9 @@ export class MetodoCongruencialMixto {
     let s = Number(seed);
     if (!Number.isFinite(s)) s = 1;
     s = Math.trunc(s);
+    if (s < 0) {
+      throw new RangeError("La semilla debe ser un entero mayor o igual a 0.");
+    }
     this.state = (s >>> 0) || 1;
   }
 

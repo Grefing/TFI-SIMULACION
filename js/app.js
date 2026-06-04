@@ -672,8 +672,30 @@ function logPruebasEstadisticasEnConsola(seed) {
   console.groupEnd();
 }
 
+/** Lee y valida la semilla del formulario (entero ≥ 0). */
+function readValidatedSeed() {
+  const el = document.getElementById("seed");
+  if (!el) return null;
+  const raw = Number(el.value);
+  if (!Number.isFinite(raw)) {
+    el.setCustomValidity("Ingresá un número entero válido.");
+    el.reportValidity();
+    return null;
+  }
+  if (raw < 0) {
+    el.setCustomValidity("La semilla debe ser mayor o igual a 0.");
+    el.reportValidity();
+    return null;
+  }
+  el.setCustomValidity("");
+  return Math.trunc(raw);
+}
+
 document.getElementById("sim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  const seed = readValidatedSeed();
+  if (seed == null) return;
 
   simAbortController?.abort();
   simAbortController = new AbortController();
@@ -681,7 +703,6 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 
   setSimControlsRunning(true);
 
-  const seed = Number(document.getElementById("seed").value);
   logPruebasEstadisticasEnConsola(seed);
 
   const pctInk = document.getElementById("pct-ink").value;
@@ -781,4 +802,7 @@ function bindWorkersUi() {
 
 bindRangeOutputs();
 bindWorkersUi();
+document.getElementById("seed")?.addEventListener("input", (e) => {
+  if (e.target instanceof HTMLInputElement) e.target.setCustomValidity("");
+});
 initRecoveryInfoModal();
