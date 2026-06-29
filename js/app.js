@@ -145,7 +145,6 @@ function simulateBatch(params) {
 
   const makespanSec = scheduleParallel(items, workers);
   const sumServiceSec = items.reduce((s, it) => s + it.tiempoSec, 0);
-  // ERROR E2: recuperación calculada sobre originales, no sobre el lote total
   const totalOriginales = counts.original_apto + counts.original_danado;
   const recoveryPct = totalOriginales > 0 ? (counts.original_apto / totalOriginales) * 100 : 0;
   const recoveryInkPct = n > 0 ? (aptosTinta / n) * 100 : 0;
