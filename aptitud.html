@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -18,9 +19,20 @@
         <div>
           <h1>Desglose de aptitud</h1>
           <p class="sidebar__subtitle">Logística inversa · Brasil</p>
+          <p class="project-label">Trabajo Final Integrador Simulación 2026 · Grupo 11</p>
         </div>
       </div>
       <nav class="page-aptitud__nav">
+        <button type="button" class="btn btn--ghost btn--small" id="btn-tour">Ver tutorial</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          id="btn-aptitud-pdf"
+          disabled
+          aria-label="Descargar informe PDF con los resultados de la última simulación"
+        >
+          Descargar PDF
+        </button>
         <a class="btn btn--ghost" href="index.html">← Volver al simulador</a>
       </nav>
     </header>
@@ -57,7 +69,7 @@
           <article class="kpi">
             <span class="kpi__label">Tiempo total de jornada</span>
             <strong class="kpi__value" id="kpi-time">—</strong>
-            <span class="kpi__hint">Suma de tiempos de clasificación</span>
+            <span class="kpi__hint">Jornada en horas (makespan del lote)</span>
           </article>
           <article class="kpi">
             <span class="kpi__label">Elementos (N)</span>
@@ -65,20 +77,63 @@
             <span class="kpi__hint">Lote simulado</span>
           </article>
           <article class="kpi">
-            <span class="kpi__label">Aptos (verde)</span>
+            <div class="kpi__label-row">
+              <span class="kpi__label">Aptos (verde)</span>
+              <button
+                type="button"
+                class="kpi__info-btn kpi__info-btn--inactive"
+                id="kpi-apt-info"
+                aria-label="Desglose de aptos por tinta y tóner. Ejecutá una simulación para ver datos."
+              >
+                <svg class="kpi__info-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.25" />
+                  <path fill="currentColor" d="M8 4.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7zm-.5 2.5h1.1v5.3H7.5V6.6z" />
+                </svg>
+              </button>
+            </div>
             <strong class="kpi__value kpi__value--green" id="kpi-apt">—</strong>
             <span class="kpi__hint">HP original sano</span>
           </article>
           <article class="kpi">
-            <span class="kpi__label">No apto · daño (amarillo)</span>
+            <div class="kpi__label-row">
+              <span class="kpi__label">No apto · daño (amarillo)</span>
+              <button
+                type="button"
+                class="kpi__info-btn kpi__info-btn--inactive"
+                id="kpi-dmg-info"
+                aria-label="Desglose por daño: tinta y tóner. Ejecutá una simulación para ver datos."
+              >
+                <svg class="kpi__info-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.25" />
+                  <path fill="currentColor" d="M8 4.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7zm-.5 2.5h1.1v5.3H7.5V6.6z" />
+                </svg>
+              </button>
+            </div>
             <strong class="kpi__value kpi__value--warn" id="kpi-dmg">—</strong>
             <span class="kpi__hint">HP original dañado</span>
           </article>
           <article class="kpi">
-            <span class="kpi__label">No apto · genérico (rojo)</span>
+            <div class="kpi__label-row">
+              <span class="kpi__label">No apto · genérico (rojo)</span>
+              <button
+                type="button"
+                class="kpi__info-btn kpi__info-btn--inactive"
+                id="kpi-gen-info"
+                aria-label="Desglose genéricos: tinta y tóner. Ejecutá una simulación para ver datos."
+              >
+                <svg class="kpi__info-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.25" />
+                  <path fill="currentColor" d="M8 4.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7zm-.5 2.5h1.1v5.3H7.5V6.6z" />
+                </svg>
+              </button>
+            </div>
             <strong class="kpi__value kpi__value--danger" id="kpi-gen">—</strong>
             <span class="kpi__hint">No original</span>
           </article>
+        </div>
+        <div id="bottleneck-alert" class="bottleneck-alert" hidden role="alert" aria-live="polite">
+          <strong class="bottleneck-alert__title">Cuello de botella detectado</strong>
+          <p class="bottleneck-alert__text" id="bottleneck-alert-text"></p>
         </div>
       </section>
 
@@ -134,7 +189,56 @@
     </div>
   </div>
 
+  <div id="bucket-modal-root" class="recovery-modal" hidden aria-hidden="true">
+    <div class="recovery-modal__backdrop" data-bucket-modal-close tabindex="-1" aria-hidden="true"></div>
+    <div
+      class="recovery-modal__dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bucket-modal-title"
+      tabindex="-1"
+    >
+      <div class="recovery-modal__head">
+        <h2 id="bucket-modal-title" class="recovery-modal__title">
+          <span class="recovery-modal__title-inner">
+            <span id="bucket-modal-title-dot" class="recovery-modal__category-dot" hidden aria-hidden="true"></span>
+            <span id="bucket-modal-title-text">Desglose</span>
+          </span>
+        </h2>
+        <button type="button" class="recovery-modal__close" data-bucket-modal-close aria-label="Cerrar">
+          ×
+        </button>
+      </div>
+      <div class="recovery-modal__body">
+        <p class="recovery-modal__lead" id="bucket-modal-lead"></p>
+        <ul class="recovery-modal__list">
+          <li class="recovery-modal__item">
+            <span class="recovery-modal__item-label">Tinta (cartuchos)</span>
+            <strong class="recovery-modal__item-value" id="bucket-modal-ink"></strong>
+            <span class="recovery-modal__item-unit">unidades</span>
+          </li>
+          <li class="recovery-modal__item">
+            <span class="recovery-modal__item-label">Tóner</span>
+            <strong class="recovery-modal__item-value" id="bucket-modal-toner"></strong>
+            <span class="recovery-modal__item-unit">unidades</span>
+          </li>
+          <li class="recovery-modal__item recovery-modal__item--total">
+            <span class="recovery-modal__item-label" id="bucket-modal-total-label">Total</span>
+            <strong class="recovery-modal__item-value" id="bucket-modal-total"></strong>
+            <span class="recovery-modal__item-unit">unidades</span>
+          </li>
+        </ul>
+        <p class="recovery-modal__hint" id="bucket-modal-hint"></p>
+      </div>
+      <div class="recovery-modal__footer">
+        <button type="button" class="btn btn--primary" data-bucket-modal-close>Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
   <script type="module" src="js/aptitud.js"></script>
 </body>
 </html>

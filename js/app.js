@@ -1,56 +1,34 @@
-/**
- * Generador de aleatoriedad (versión con error E1 — Math.random).
- * La semilla no controla la secuencia: cada corrida difiere aunque seed sea igual.
- */
 import { saveSimSnapshot } from "./simSnapshot.js";
+import { initSimulatorTour } from "./onboardingTour.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
+import { syncBottleneckAlert, hideBottleneckAlert } from "./bottleneckAlertUi.js";
+import { formatJornada } from "./timeFormat.js";
+import { MetodoCongruencialMixto } from "./lcgMixto.js";
+import { validarGeneradorU01 } from "./pruebasEstadisticas.js";
+import { sampleServiceSec } from "./tiemposServicio.js";
 
-class LCG {
-  constructor(seed) {
-    let s = Number(seed);
-    if (!Number.isFinite(s)) s = 1;
-    s = Math.trunc(s);
-    this.state = (s >>> 0) || 1;
-  }
+const BATCH_N_MIN = 150;
+const RNG_VALIDATION_N = 10000;
+const BATCH_N_MAX = 3000;
+const MAX_WORKERS = 8;
 
-  nextU01() {
-    return Math.random();
-  }
-
-  nextIntInclusive(min, max) {
-    const lo = Math.ceil(min);
-    const hi = Math.floor(max);
-    if (hi < lo) return lo;
-    const span = hi - lo + 1;
-    const t = Math.floor(this.nextU01() * span);
-    return lo + t;
-  }
-
-  /** Bernoulli: true con probabilidad p en [0,1] */
-  nextBernoulli(p) {
-    const clamped = Math.min(1, Math.max(0, p));
-    return this.nextU01() < clamped;
-  }
-}
-
+/** Acota un valor de slider al rango 0–100 %. */
 function clampPct(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
   return Math.min(100, Math.max(0, n));
 }
 
+/** Clasifica la pieza en apto, dañado o genérico. */
 function classifyItem(isOriginal, isDamaged) {
   if (!isOriginal) return { apto: false, bucket: "generico" };
   if (isDamaged) return { apto: false, bucket: "original_danado" };
   return { apto: true, bucket: "original_apto" };
 }
 
-function sampleServiceSec(rng) {
-  return rng.nextIntInclusive(15, 30);
-}
-
+/** Asigna piezas a operarios (máquina más libre); devuelve makespan. */
 function scheduleParallel(items, workers) {
-  const w = Math.max(1, Math.min(12, Math.floor(workers) || 1));
+  const w = Math.max(1, Math.min(MAX_WORKERS, Math.floor(workers) || 1));
   const free = new Array(w).fill(0);
   for (const it of items) {
     let wi = 0;
@@ -65,6 +43,7 @@ function scheduleParallel(items, workers) {
   return Math.max(...free, 0);
 }
 
+/** Formatea segundos para la UI (s o m). */
 function formatSec(s) {
   const n = Math.round(Number(s));
   if (!Number.isFinite(n) || n <= 0) return "0 s";
@@ -74,32 +53,47 @@ function formatSec(s) {
   return r ? `${m}m ${r}s` : `${m} m`;
 }
 
-function formatJornada(sec) {
-  const n = Math.round(Number(sec));
-  if (!Number.isFinite(n) || n < 60) return formatSec(n);
-  const m = n / 60;
-  if (m < 10) return `${m.toFixed(1)} min`;
-  return `${Math.round(m)} min`;
+/** Sortea tipo (tinta/tóner) y si es HP original o genérico. */
+function samplePieceKind(rng, pInk, pOrigInk, pOrigToner) {
+  const u = rng.nextU01();
+  if (u < pOrigInk) {
+    return { tipo: "Tinta", isOriginal: true };
+  }
+  if (u < pOrigInk + pOrigToner) {
+    return { tipo: "Tóner", isOriginal: true };
+  }
+  const pGen = Math.max(0, 1 - pOrigInk - pOrigToner);
+  let pInkIfGeneric = 0.5;
+  if (pGen > 0) {
+    pInkIfGeneric = Math.min(1, Math.max(0, (pInk - pOrigInk) / pGen));
+  }
+  const isInk = rng.nextBernoulli(pInkIfGeneric);
+  return { tipo: isInk ? "Tinta" : "Tóner", isOriginal: false };
 }
 
-
+/** Genera el lote completo, tiempos, KPIs y planificación paralela. */
 function simulateBatch(params) {
   const {
     seed,
     pctInk,
-    pctOriginal,
-    pctDamage,
+    pctOrigInk,
+    pctOrigToner,
+    pctDmgInk,
+    pctDmgToner,
     workers: workersRaw,
   } = params;
 
-  const rng = new LCG(seed);
-  const n = rng.nextIntInclusive(300, 2000);
+  const rng = new MetodoCongruencialMixto(seed);
+  const n = rng.nextIntInclusive(BATCH_N_MIN, BATCH_N_MAX);
 
-  const workers = Math.min(12, Math.max(1, Math.floor(Number(workersRaw)) || 1));
+  const workers = Math.min(MAX_WORKERS, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
-  const pInk = clampPct(pctInk) / 100;
-  const pOriginal = clampPct(pctOriginal) / 100;
-  const pDamage = clampPct(pctDamage) / 100;
+  // ERROR E1: sliders en % pero se usan como probabilidad sin dividir por 100
+  const pInk = clampPct(pctInk);
+  const pOrigInk = clampPct(pctOrigInk);
+  const pOrigToner = clampPct(pctOrigToner);
+  const pDmgInk = clampPct(pctDmgInk);
+  const pDmgToner = clampPct(pctDmgToner);
 
   const items = [];
 
@@ -111,13 +105,18 @@ function simulateBatch(params) {
 
   let aptosTinta = 0;
   let aptosToner = 0;
+  let danadoTinta = 0;
+  let danadoToner = 0;
+  let genericoTinta = 0;
+  let genericoToner = 0;
 
   for (let i = 1; i <= n; i += 1) {
-    const isInk = rng.nextBernoulli(pInk);
-    const tipo = isInk ? "Tinta" : "Tóner";
-    const isOriginal = rng.nextBernoulli(pOriginal);
+    const { tipo, isOriginal } = samplePieceKind(rng, pInk, pOrigInk, pOrigToner);
     const originalidad = isOriginal ? "HP Original" : "Genérico";
-    const isDamaged = rng.nextBernoulli(pDamage);
+    let isDamaged = false;
+    if (isOriginal) {
+      isDamaged = rng.nextBernoulli(tipo === "Tinta" ? pDmgInk : pDmgToner);
+    }
     const integridad = isDamaged ? "Dañado" : "Sano";
 
     const { apto, bucket } = classifyItem(isOriginal, isDamaged);
@@ -125,8 +124,14 @@ function simulateBatch(params) {
     if (bucket === "original_apto") {
       if (tipo === "Tinta") aptosTinta += 1;
       else aptosToner += 1;
+    } else if (bucket === "original_danado") {
+      if (tipo === "Tinta") danadoTinta += 1;
+      else danadoToner += 1;
+    } else if (bucket === "generico") {
+      if (tipo === "Tinta") genericoTinta += 1;
+      else genericoToner += 1;
     }
-    const tiempoSec = sampleServiceSec(rng);
+    const tiempoSec = sampleServiceSec(rng, tipo, isOriginal, isDamaged);
 
     items.push({
       id: i,
@@ -154,6 +159,12 @@ function simulateBatch(params) {
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta,
+    aptosToner,
+    danadoTinta,
+    danadoToner,
+    genericoTinta,
+    genericoToner,
     n,
     seed: Number(params.seed),
     workers,
@@ -165,6 +176,7 @@ const SPEED_STEPS = [1, 2, 4, 8];
 let simSpeedIndex = 0;
 let simAbortController = null;
 
+/** Deshabilita enlaces mientras corre la animación. */
 function setNavLinkDisabled(el, disabled) {
   if (!el) return;
   if (disabled) {
@@ -179,6 +191,7 @@ function setNavLinkDisabled(el, disabled) {
   }
 }
 
+/** Habilita/deshabilita botones según simulación en curso. */
 function setSimControlsRunning(running) {
   const runBtn = document.getElementById("btn-run");
   const skipBtn = document.getElementById("btn-skip");
@@ -190,6 +203,7 @@ function setSimControlsRunning(running) {
   setNavLinkDisabled(document.getElementById("btn-aptitud-detail"), running);
 }
 
+/** Espera ms respetando AbortSignal (completar ahora). */
 function waitMs(ms, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -208,24 +222,29 @@ function waitMs(ms, signal) {
   });
 }
 
+/** Factor de velocidad actual (×1, ×2, ×4, ×8). */
 function getSimSpeedFactor() {
   return SPEED_STEPS[simSpeedIndex];
 }
 
+/** Actualiza la etiqueta de velocidad en pantalla. */
 function syncSpeedUi() {
   const el = document.getElementById("speed-factor-label");
   if (el) el.textContent = `×${getSimSpeedFactor()}`;
 }
 
+/** Cicla al siguiente factor de velocidad de animación. */
 function cycleSimSpeed() {
   simSpeedIndex = (simSpeedIndex + 1) % SPEED_STEPS.length;
   syncSpeedUi();
 }
 
+/** Aplica el factor de velocidad al delay entre eventos. */
 function effectiveStepDelayMs(baseDelayMs) {
   return Math.max(40, Math.floor(baseDelayMs / getSimSpeedFactor()));
 }
 
+/** Actualiza KPIs de recuperación, N y jornada en la barra lateral. */
 function setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec }) {
   document.getElementById("kpi-recovery").textContent = `${recoveryPct.toFixed(1)} %`;
   document.getElementById("kpi-time").textContent = formatJornada(makespanSec);
@@ -242,6 +261,7 @@ function setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec
 const BELT_COLS = 7;
 const BELT_CENTER = 3;
 
+/** Resetea tabla, cinta, KPIs y progreso a estado inicial. */
 function clearResultsUi() {
   document.getElementById("results-body").innerHTML = "";
   document.getElementById("belt-cells").innerHTML = "";
@@ -252,6 +272,7 @@ function clearResultsUi() {
   document.getElementById("kpi-time").textContent = "—";
   document.getElementById("kpi-count").textContent = "—";
   syncRecoveryInfoBtn({ active: false });
+  hideBottleneckAlert();
   document.getElementById("belt-stat-queue").textContent = "—";
   document.getElementById("belt-stat-wait").textContent = "";
   document.getElementById("belt-stat-processed").textContent = "0";
@@ -268,11 +289,12 @@ function clearResultsUi() {
   badge.className = "badge";
   const opBadge = document.getElementById("operators-count-badge");
   if (opBadge) {
-    const w = Math.max(1, Math.min(12, Number(document.getElementById("workers-count")?.value) || 1));
+    const w = Math.max(1, Math.min(MAX_WORKERS, Number(document.getElementById("workers-count")?.value) || 1));
     opBadge.textContent = `${w} op.`;
   }
 }
 
+/** Ancho de las barras de proporción en la cinta (apt/dmg/gen). */
 function setBeltRatioWidths(pctApt, pctDmg, pctGen) {
   const a = document.getElementById("belt-ratio-apt");
   const d = document.getElementById("belt-ratio-dmg");
@@ -282,7 +304,7 @@ function setBeltRatioWidths(pctApt, pctDmg, pctGen) {
   if (g) g.style.width = `${pctGen}%`;
 }
 
-/** Colores tras la línea: verde apto, amarillo original dañado, rojo genérico. */
+/** Clase CSS de color según bucket (apto/daño/genérico). */
 function pieceBucketClass(item) {
   if (!item) return "neutral";
   if (item.bucket === "original_apto") return "ok";
@@ -290,6 +312,7 @@ function pieceBucketClass(item) {
   return "bad";
 }
 
+/** SVG de cartucho de tinta para la cinta. */
 function svgInk() {
   return `<svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <rect class="belt-piece__ring" x="2.5" y="2.5" width="35" height="47" rx="8" fill="none" />
@@ -299,6 +322,7 @@ function svgInk() {
   </svg>`;
 }
 
+/** SVG de tóner para la cinta. */
 function svgToner() {
   return `<svg viewBox="0 0 52 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <rect class="belt-piece__ring" x="2.5" y="2.5" width="47" height="43" rx="7" fill="none" />
@@ -308,6 +332,7 @@ function svgToner() {
   </svg>`;
 }
 
+/** HTML de una pieza en un slot de la cinta animada. */
 function cartridgeHtml(item, variant) {
   if (!item) {
     return '<span class="belt-piece belt-piece--neutral belt-piece--ghost" aria-hidden="true"></span>';
@@ -326,6 +351,7 @@ function cartridgeHtml(item, variant) {
   </div>`;
 }
 
+/** Crea las 7 celdas de la cinta si aún no existen. */
 function ensureBeltGrid() {
   const wrap = document.getElementById("belt-cells");
   if (wrap.children.length === BELT_COLS) return;
@@ -338,6 +364,7 @@ function ensureBeltGrid() {
   }
 }
 
+/** Pinta cola, pieza en clasificación y recién procesadas en la cinta. */
 function renderBeltParallel({ center, pending, recent }) {
   ensureBeltGrid();
   const cells = document.querySelectorAll("#belt-cells .belt-cell");
@@ -368,6 +395,7 @@ function renderBeltParallel({ center, pending, recent }) {
   if (center) cEl.classList.add("belt-cell--pulse");
 }
 
+/** Cuenta aptos/dañados/genéricos entre ids completados. */
 function countBucketsInSet(items, idSet) {
   let apt = 0;
   let dmg = 0;
@@ -381,7 +409,7 @@ function countBucketsInSet(items, idSet) {
   return { apt, dmg, gen };
 }
 
-/** Pausa entre piezas: más lenta para poder seguir el flujo en pantalla. */
+/** Delay base de animación según tamaño del lote N. */
 function computeStepDelayMs(n) {
   if (n <= 20) return 1100;
   if (n <= 40) return 900;
@@ -392,6 +420,7 @@ function computeStepDelayMs(n) {
   return Math.max(300, Math.floor(72000 / n));
 }
 
+/** Actualiza contadores y barra de proporción de la cinta. */
 function updateBeltStatsFromCompleted(completed, items, n) {
   const proc = completed.size;
   const pend = n - proc;
@@ -412,6 +441,7 @@ function updateBeltStatsFromCompleted(completed, items, n) {
   }
 }
 
+/** SVG del icono de operario. */
 function workerSvg() {
   return `<svg class="worker-icon" viewBox="0 0 48 56" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <circle cx="24" cy="14" r="9" fill="#30363d" stroke="#484f58" stroke-width="1.2" />
@@ -420,6 +450,7 @@ function workerSvg() {
   </svg>`;
 }
 
+/** Muestra qué operario está clasificando cada pieza en el instante t. */
 function renderOperatorsStrip(t, items, workers) {
   const wrap = document.getElementById("operators-strip");
   if (!wrap) return;
@@ -439,11 +470,13 @@ function renderOperatorsStrip(t, items, workers) {
   }
 }
 
+/** Pausa de animación proporcional al salto de tiempo simulado. */
 function delayForEventGap(deltaSec, baseDelayMs) {
   const scaled = Math.floor((baseDelayMs / 7) * Math.min(28, Math.max(0.35, deltaSec)));
   return effectiveStepDelayMs(Math.max(45, Math.min(960, scaled)));
 }
 
+/** Iconos de operarios en el panel lateral del formulario. */
 function renderSidebarWorkerIcons(count) {
   const wrap = document.getElementById("workers-icons");
   if (!wrap) return;
@@ -463,10 +496,12 @@ function renderSidebarWorkerIcons(count) {
   if (opBadge) opBadge.textContent = `${count} op.`;
 }
 
+/** Clase CSS del tag tinta o tóner. */
 function tipoClass(tipo) {
   return tipo === "Tinta" ? "tag tag--ink" : "tag tag--toner";
 }
 
+/** HTML del badge de aptitud en la tabla de resultados. */
 function estadoTagHtml(item) {
   if (item.bucket === "original_apto") {
     return `<span class="tag tag--ok">${item.estado}</span>`;
@@ -477,6 +512,7 @@ function estadoTagHtml(item) {
   return `<span class="tag tag--bad">No apto · genérico</span>`;
 }
 
+/** Agrega una fila a la tabla de detalle (opcional flash). */
 function appendResultRow(item, { flash }) {
   const tbody = document.getElementById("results-body");
   const tr = document.createElement("tr");
@@ -498,6 +534,7 @@ function appendResultRow(item, { flash }) {
   }
 }
 
+/** Estado final: tabla completa, snapshot, KPIs y alerta 8 h. */
 function finishSimulationUi(result) {
   const { items, makespanSec, counts, recoveryPct, n, workers } = result;
   const bar = document.getElementById("progress-bar");
@@ -529,13 +566,20 @@ function finishSimulationUi(result) {
   badge.textContent = "Finalizado";
   badge.className = "badge badge--done";
 
-  const { recoveryInkPct, recoveryTonerPct } = result;
+  const { recoveryInkPct, recoveryTonerPct, aptosTinta, aptosToner, danadoTinta, danadoToner, genericoTinta, genericoToner } = result;
   setKpis({ recoveryPct, recoveryInkPct, recoveryTonerPct, n, makespanSec });
+  syncBottleneckAlert(makespanSec, workers);
   saveSimSnapshot({
     counts,
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta,
+    aptosToner,
+    danadoTinta,
+    danadoToner,
+    genericoTinta,
+    genericoToner,
     n,
     totalMinutes: makespanSec / 60,
     makespanSec,
@@ -545,6 +589,7 @@ function finishSimulationUi(result) {
   });
 }
 
+/** Reproduce la corrida en el tiempo simulado (cinta + tabla). */
 async function runAnimatedSimulation(result, stepDelayMs, signal) {
   const { items, makespanSec, counts, recoveryPct, n, workers } = result;
   const bar = document.getElementById("progress-bar");
@@ -618,8 +663,41 @@ async function runAnimatedSimulation(result, stepDelayMs, signal) {
   return true;
 }
 
+/** Imprime en consola las pruebas de promedios y frecuencia del MCM. */
+function logPruebasEstadisticasEnConsola(seed) {
+  if (!Number.isFinite(seed)) return;
+  const validacion = validarGeneradorU01(seed, RNG_VALIDATION_N);
+  console.group(`Pruebas estadísticas MCM — semilla ${seed} (n = ${RNG_VALIDATION_N})`);
+  console.log("Promedios:", validacion.promedios);
+  console.log("Frecuencia:", validacion.frecuencia);
+  console.log(validacion.resumen);
+  console.groupEnd();
+}
+
+/** Lee y valida la semilla del formulario (entero ≥ 0). */
+function readValidatedSeed() {
+  const el = document.getElementById("seed");
+  if (!el) return null;
+  const raw = Number(el.value);
+  if (!Number.isFinite(raw)) {
+    el.setCustomValidity("Ingresá un número entero válido.");
+    el.reportValidity();
+    return null;
+  }
+  if (raw < 0) {
+    el.setCustomValidity("La semilla debe ser mayor o igual a 0.");
+    el.reportValidity();
+    return null;
+  }
+  el.setCustomValidity("");
+  return Math.trunc(raw);
+}
+
 document.getElementById("sim-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  const seed = readValidatedSeed();
+  if (seed == null) return;
 
   simAbortController?.abort();
   simAbortController = new AbortController();
@@ -627,17 +705,22 @@ document.getElementById("sim-form").addEventListener("submit", async (e) => {
 
   setSimControlsRunning(true);
 
-  const seed = Number(document.getElementById("seed").value);
+  logPruebasEstadisticasEnConsola(seed);
+
   const pctInk = document.getElementById("pct-ink").value;
-  const pctOriginal = document.getElementById("pct-original").value;
-  const pctDamage = document.getElementById("pct-damage").value;
+  const pctOrigInk = document.getElementById("pct-orig-ink").value;
+  const pctOrigToner = document.getElementById("pct-orig-toner").value;
+  const pctDmgInk = document.getElementById("pct-dmg-ink").value;
+  const pctDmgToner = document.getElementById("pct-dmg-toner").value;
   const workers = document.getElementById("workers-count").value;
 
   const result = simulateBatch({
     seed,
     pctInk,
-    pctOriginal,
-    pctDamage,
+    pctOrigInk,
+    pctOrigToner,
+    pctDmgInk,
+    pctDmgToner,
     workers,
   });
 
@@ -675,16 +758,20 @@ document.getElementById("btn-speed-up").addEventListener("click", () => {
 
 syncSpeedUi();
 
+/** Sincroniza etiquetas % de los sliders con su valor. */
 function bindRangeOutputs() {
   const pairs = [
     ["pct-ink", "pct-ink-out"],
-    ["pct-original", "pct-original-out"],
-    ["pct-damage", "pct-damage-out"],
+    ["pct-orig-ink", "pct-orig-ink-out"],
+    ["pct-orig-toner", "pct-orig-toner-out"],
+    ["pct-dmg-ink", "pct-dmg-ink-out"],
+    ["pct-dmg-toner", "pct-dmg-toner-out"],
   ];
   for (const [id, outId] of pairs) {
     const inp = document.getElementById(id);
     const out = document.getElementById(outId);
     if (!inp || !out) continue;
+    /** Actualiza el output % del slider. */
     const sync = () => {
       out.textContent = `${inp.value}%`;
     };
@@ -693,16 +780,19 @@ function bindRangeOutputs() {
   }
 }
 
+/** Botones +/− de cantidad de operarios en el sidebar. */
 function bindWorkersUi() {
   const hid = document.getElementById("workers-count");
   const down = document.getElementById("btn-workers-down");
   const up = document.getElementById("btn-workers-up");
   if (!hid || !down || !up) return;
 
-  const read = () => Math.min(12, Math.max(1, Number(hid.value) || 1));
+  /** Lee operarios actuales (1–8). */
+  const read = () => Math.min(MAX_WORKERS, Math.max(1, Number(hid.value) || 1));
 
+  /** Aplica cantidad y refresca iconos del sidebar. */
   const apply = (raw) => {
-    const v = Math.min(12, Math.max(1, Number(raw) || 1));
+    const v = Math.min(MAX_WORKERS, Math.max(1, Number(raw) || 1));
     hid.value = String(v);
     renderSidebarWorkerIcons(v);
   };
@@ -714,4 +804,8 @@ function bindWorkersUi() {
 
 bindRangeOutputs();
 bindWorkersUi();
+document.getElementById("seed")?.addEventListener("input", (e) => {
+  if (e.target instanceof HTMLInputElement) e.target.setCustomValidity("");
+});
 initRecoveryInfoModal();
+initSimulatorTour();
