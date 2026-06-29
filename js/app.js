@@ -1,4 +1,5 @@
 import { saveSimSnapshot } from "./simSnapshot.js";
+import { initSimulatorTour } from "./onboardingTour.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 import { syncBottleneckAlert, hideBottleneckAlert } from "./bottleneckAlertUi.js";
 import { formatJornada } from "./timeFormat.js";
@@ -806,3 +807,4 @@ document.getElementById("seed")?.addEventListener("input", (e) => {
   if (e.target instanceof HTMLInputElement) e.target.setCustomValidity("");
 });
 initRecoveryInfoModal();
+initSimulatorTour();

@@ -1,4 +1,5 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
+import { initAptitudTour } from "./onboardingTour.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
 import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
 import { exportAptitudPdf, preloadAptitudPdfLogo } from "./aptitudPdf.js";
@@ -211,7 +212,9 @@ function init() {
   renderChart(counts);
 }
 
+const initialSnap = loadSimSnapshot();
 init();
-initPdfDownload(loadSimSnapshot());
+initPdfDownload(initialSnap);
 initRecoveryInfoModal();
 initAptInfoModal();
+initAptitudTour({ hasData: Boolean(initialSnap?.counts) });
