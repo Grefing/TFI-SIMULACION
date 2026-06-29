@@ -88,7 +88,6 @@ function simulateBatch(params) {
 
   const workers = Math.min(MAX_WORKERS, Math.max(1, Math.floor(Number(workersRaw)) || 1));
 
-  // ERROR E1: sliders en % pero se usan como probabilidad sin dividir por 100
   const pInk = clampPct(pctInk);
   const pOrigInk = clampPct(pctOrigInk);
   const pOrigToner = clampPct(pctOrigToner);
