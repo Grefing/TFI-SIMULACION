@@ -1,8 +1,14 @@
 import { loadSimSnapshot } from "./simSnapshot.js";
+import { initAptitudTour } from "./onboardingTour.js";
 import { initRecoveryInfoModal, syncRecoveryInfoBtn } from "./recoveryInfoUi.js";
+import { initAptInfoModal, syncAptInfoBtn, syncDmgInfoBtn, syncGenInfoBtn } from "./aptInfoUi.js";
+import { exportAptitudPdf, preloadAptitudPdfLogo } from "./aptitudPdf.js";
+import { syncBottleneckAlert, hideBottleneckAlert } from "./bottleneckAlertUi.js";
+import { formatJornada } from "./timeFormat.js";
 
 let chartInstance = null;
 
+/** Destruye la instancia anterior del gráfico Chart.js. */
 function destroyChart() {
   if (chartInstance) {
     chartInstance.destroy();
@@ -10,6 +16,7 @@ function destroyChart() {
   }
 }
 
+/** Dibuja la torta aptos / dañados / genéricos. */
 function renderChart(counts) {
   const el = document.getElementById("chart-pie");
   if (!el || typeof Chart === "undefined") return;
@@ -61,11 +68,40 @@ function renderChart(counts) {
   });
 }
 
+/** Formatea un número como porcentaje con d decimales. */
 function fmtPct(n, d) {
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(d)} %`;
 }
 
+/** Habilita o deshabilita el botón de descarga PDF. */
+function setPdfButtonEnabled(enabled) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+}
+
+/** Enlaza el clic del botón PDF a exportAptitudPdf. */
+function initPdfDownload(snap) {
+  const btn = document.getElementById("btn-aptitud-pdf");
+  if (!btn) return;
+  if (snap?.counts) preloadAptitudPdfLogo();
+  btn.addEventListener("click", async () => {
+    const current = loadSimSnapshot();
+    if (!current?.counts) return;
+    const wasEnabled = !btn.disabled;
+    btn.disabled = true;
+    try {
+      await exportAptitudPdf(current);
+    } finally {
+      if (wasEnabled) setPdfButtonEnabled(true);
+    }
+  });
+  setPdfButtonEnabled(Boolean(snap?.counts));
+}
+
+/** Carga el snapshot y pinta KPIs, gráfico y botones ℹ. */
 function init() {
   const snap = loadSimSnapshot();
   const empty = document.getElementById("aptitud-empty");
@@ -75,8 +111,15 @@ function init() {
   if (!snap || !snap.counts) {
     empty.hidden = false;
     content.hidden = true;
+    setPdfButtonEnabled(false);
+    syncAptInfoBtn({ active: false });
+    syncDmgInfoBtn({ active: false });
+    syncGenInfoBtn({ active: false });
+    hideBottleneckAlert();
     return;
   }
+
+  setPdfButtonEnabled(true);
 
   empty.hidden = true;
   content.hidden = false;
@@ -86,6 +129,12 @@ function init() {
     recoveryPct,
     recoveryInkPct,
     recoveryTonerPct,
+    aptosTinta: snapAptosTinta,
+    aptosToner: snapAptosToner,
+    danadoTinta: snapDanadoTinta,
+    danadoToner: snapDanadoToner,
+    genericoTinta: snapGenericoTinta,
+    genericoToner: snapGenericoToner,
     n,
     totalMinutes,
     makespanSec,
@@ -93,8 +142,7 @@ function init() {
     seed,
   } = snap;
   const ms = Number.isFinite(makespanSec) ? makespanSec : (totalMinutes || 0) * 60;
-  const jornada =
-    ms < 60 ? `${Math.round(ms)} s` : ms < 600 ? `${(ms / 60).toFixed(1)} min` : `${Math.round(ms / 60)} min`;
+  const jornada = formatJornada(ms);
   const op = workers != null ? ` · ${workers} op.` : "";
   meta.textContent = `Última corrida · N = ${n} · Recuperación ${fmtPct(recoveryPct, 1)} · Jornada ${jornada}${op} · semilla ${seed ?? "—"}`;
 
@@ -113,13 +161,60 @@ function init() {
     syncRecoveryInfoBtn({ active: false });
   }
   document.getElementById("kpi-time").textContent = jornada;
+  syncBottleneckAlert(ms, workers);
   document.getElementById("kpi-count").textContent = String(n);
   document.getElementById("kpi-apt").textContent = String(counts.original_apto);
+
+  const aptosTotal = counts.original_apto;
+  let aptosTinta = Number(snapAptosTinta);
+  let aptosToner = Number(snapAptosToner);
+  if (!Number.isFinite(aptosTinta) && Number.isFinite(recoveryInkPct) && n > 0) {
+    aptosTinta = Math.round((recoveryInkPct / 100) * n);
+  }
+  if (!Number.isFinite(aptosToner) && Number.isFinite(recoveryTonerPct) && n > 0) {
+    aptosToner = Math.round((recoveryTonerPct / 100) * n);
+  }
+  if (aptosTotal > 0 && Number.isFinite(aptosTinta) && Number.isFinite(aptosToner)) {
+    syncAptInfoBtn({ aptosTinta, aptosToner, aptosTotal, active: true });
+  } else {
+    syncAptInfoBtn({ active: false });
+  }
+
   document.getElementById("kpi-dmg").textContent = String(counts.original_danado);
   document.getElementById("kpi-gen").textContent = String(counts.generico);
+
+  const danadoTotal = counts.original_danado;
+  const danadoTinta = Number(snapDanadoTinta);
+  const danadoToner = Number(snapDanadoToner);
+  if (
+    danadoTotal > 0 &&
+    Number.isFinite(danadoTinta) &&
+    Number.isFinite(danadoToner)
+  ) {
+    syncDmgInfoBtn({ danadoTinta, danadoToner, danadoTotal, active: true });
+  } else {
+    syncDmgInfoBtn({ active: false });
+  }
+
+  const genericoTotal = counts.generico;
+  const genericoTinta = Number(snapGenericoTinta);
+  const genericoToner = Number(snapGenericoToner);
+  if (
+    genericoTotal > 0 &&
+    Number.isFinite(genericoTinta) &&
+    Number.isFinite(genericoToner)
+  ) {
+    syncGenInfoBtn({ genericoTinta, genericoToner, genericoTotal, active: true });
+  } else {
+    syncGenInfoBtn({ active: false });
+  }
 
   renderChart(counts);
 }
 
+const initialSnap = loadSimSnapshot();
 init();
+initPdfDownload(initialSnap);
 initRecoveryInfoModal();
+initAptInfoModal();
+initAptitudTour({ hasData: Boolean(initialSnap?.counts) });

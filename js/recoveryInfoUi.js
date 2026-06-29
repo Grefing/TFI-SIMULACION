@@ -2,6 +2,7 @@
 
 let recoveryModalListenersBound = false;
 
+/** Referencias DOM del modal de recuperación. */
 function getRecoveryModalEls() {
   const root = document.getElementById("recovery-modal-root");
   if (!root) return null;
@@ -15,6 +16,7 @@ function getRecoveryModalEls() {
   };
 }
 
+/** Muestra el modal con % recuperación tinta/tóner/total. */
 function openRecoveryModal({ recoveryPct, recoveryInkPct, recoveryTonerPct, n }) {
   const els = getRecoveryModalEls();
   if (!els) return;
@@ -50,6 +52,7 @@ function openRecoveryModal({ recoveryPct, recoveryInkPct, recoveryTonerPct, n })
   }
 }
 
+/** Cierra el modal y devuelve el foco al botón ℹ. */
 function closeRecoveryModal() {
   const els = getRecoveryModalEls();
   if (!els) return;
@@ -60,6 +63,7 @@ function closeRecoveryModal() {
   if (btn instanceof HTMLElement) btn.focus();
 }
 
+/** Cierra el modal de recuperación con Escape. */
 function onDocumentKeydown(e) {
   if (e.key !== "Escape") return;
   const root = document.getElementById("recovery-modal-root");
@@ -67,7 +71,7 @@ function onDocumentKeydown(e) {
   closeRecoveryModal();
 }
 
-/** Una vez por documento: botón abre modal; backdrop / cerrar / Escape cierran. */
+/** Enlaza botón ℹ, cierre y Escape (una sola vez). */
 export function initRecoveryInfoModal() {
   if (recoveryModalListenersBound) return;
   recoveryModalListenersBound = true;
@@ -101,6 +105,7 @@ export function initRecoveryInfoModal() {
   });
 }
 
+/** Activa o desactiva el botón ℹ según haya datos de corrida. */
 export function syncRecoveryInfoBtn({ recoveryPct = 0, recoveryInkPct = 0, recoveryTonerPct = 0, n = 0, active }) {
   const btn = document.getElementById("kpi-recovery-info");
   if (!btn) return;
